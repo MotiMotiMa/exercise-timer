@@ -376,6 +376,14 @@
       border: 1px solid rgba(200,245,122,0.2);
     }
 
+    .yt-go-home-btn {
+      width: 100%; padding: 12px; border: none; border-radius: 8px;
+      background: var(--accent); color: #0a0a0a;
+      font-family: var(--font-jp); font-size: 14px; font-weight: 900;
+      letter-spacing: 0.08em; cursor: pointer; transition: all 0.14s ease;
+    }
+    .yt-go-home-btn:hover { box-shadow: 0 0 18px var(--accent-glow); }
+
     .yt-apply-btn {
       width: 100%; padding: 10px; border: none; border-radius: 8px;
       background: var(--accent-dim); color: var(--accent);
@@ -866,6 +874,7 @@
         <div class="yt-result-title" id="ytResultTitle"></div>
         <div class="yt-tags" id="ytResultTags"></div>
         <button class="yt-apply-btn" id="ytApplyBtn">この設定をタイマーに反映</button>
+        <button class="yt-go-home-btn" id="ytGoHomeBtn" style="display:none">▶ トップページへ進む</button>
       </div>
 
       <button class="yt-manual-btn" id="ytManualToggle">動画の説明文を手動で貼り付ける ▾</button>
@@ -1283,17 +1292,21 @@ function doPlay() {
   getCtx();
   if (S.status === 'resting') { nextSet(); return; }
   if (S.status === 'paused') {
-    S.status = 'running'; S.lastTs = null; tick(); render(); return;
+    S.status = 'running'; S.lastTs = null; tick(); render();
+    ytPlayIfReady();
+    return;
   }
   if (S.status === 'running') return;
   sndStart();
   S.set = 1; S.rep = 0; startRep();
+  ytPlayIfReady();
 }
 
 function doPause() {
   if (S.status !== 'running' && S.status !== 'resting') return;
   S.status = 'paused';
   if (S.rafId) { cancelAnimationFrame(S.rafId); S.rafId = null; }
+  ytPauseIfReady();
   render();
 }
 
@@ -1302,6 +1315,7 @@ function doStop() {
   if (S.rafId) { cancelAnimationFrame(S.rafId); S.rafId = null; }
   clearTransition();
   S.workoutMode = false; S.workoutIdx = 0;
+  ytPauseIfReady();
   render();
 }
 
@@ -1563,6 +1577,10 @@ function openWorkoutPanel() {
   renderWorkoutList();
   renderSavedWorkouts();
   renderPresetSelect();
+  // Auto-fill YouTube URL field with currently loaded video
+  if (ytCurrentId && !document.getElementById('wkYtUrl').value.trim()) {
+    document.getElementById('wkYtUrl').value = `https://www.youtube.com/watch?v=${ytCurrentId}`;
+  }
   document.getElementById('workoutSheet').classList.add('open');
   document.getElementById('overlay').classList.add('open');
   document.getElementById('overlay')._target = 'workout';
@@ -1584,6 +1602,7 @@ function startWorkout() {
   getCtx();
   sndStart();
   startRep();
+  ytPlayIfReady();
 }
 
 /* Transition countdown between workout exercises */
@@ -1750,7 +1769,7 @@ async function fetchYouTubeInfo() {
   }
 
   if (!Object.keys(parsed).length && !title) {
-    setYtStatus('情報を取得できませんでした。説明文を手動で貼り付けてください', 'err');
+    setYtStatus('データを取得できませんでした。設定を手動で入力してください', 'err');
     return;
   }
 
@@ -1758,9 +1777,13 @@ async function fetchYouTubeInfo() {
   setYouTubeVideo(videoId, title);
 
   if (showYtResult(parsed, title)) {
-    setYtStatus('解析完了！設定を確認してください', 'ok');
+    setYtStatus('解析できました！', 'ok');
+    document.getElementById('ytApplyBtn').style.display = 'none';
+    document.getElementById('ytGoHomeBtn').style.display = 'block';
   } else {
-    setYtStatus(`「${title || videoId}」を読み込みました（設定は手動で入力してください）`, 'ok');
+    setYtStatus(`「${title || videoId}」を読み込みました。設定を手動で入力してください`, '');
+    document.getElementById('ytApplyBtn').style.display = 'block';
+    document.getElementById('ytGoHomeBtn').style.display = 'none';
   }
 }
 
@@ -1774,8 +1797,21 @@ function applyYouTubeData() {
   if (!S.ytParsed) return;
   fillSettingsForm(S.ytParsed);
   document.getElementById('ytResult').classList.remove('show');
+  document.getElementById('ytApplyBtn').style.display = 'block';
+  document.getElementById('ytGoHomeBtn').style.display = 'none';
   setYtStatus('設定フォームに反映しました。「適用する」で確定してください', 'ok');
   toast('YouTube設定を反映しました');
+}
+
+function ytPlayIfReady() {
+  if (ytCurrentId && ytPlayer && typeof ytPlayer.playVideo === 'function') {
+    try { ytPlayer.playVideo(); } catch(e) {}
+  }
+}
+function ytPauseIfReady() {
+  if (ytPlayer && typeof ytPlayer.pauseVideo === 'function') {
+    try { ytPlayer.pauseVideo(); } catch(e) {}
+  }
 }
 
 /* ─── YouTube IFrame Player API ─── */
@@ -1932,6 +1968,10 @@ document.getElementById('inPhaseMode').addEventListener('change', function() {
 document.getElementById('ytFetchBtn').addEventListener('click', fetchYouTubeInfo);
 document.getElementById('ytUrlInput').addEventListener('keydown', e => { if (e.key === 'Enter') fetchYouTubeInfo(); });
 document.getElementById('ytApplyBtn').addEventListener('click', applyYouTubeData);
+document.getElementById('ytGoHomeBtn').addEventListener('click', () => {
+  applyYouTubeData();
+  applySettings();
+});
 document.getElementById('ytToggleBtn').addEventListener('click', () => {
   document.getElementById('ytPanel').classList.toggle('open');
 });
@@ -2004,6 +2044,18 @@ document.querySelectorAll('.step-btn').forEach(btn => {
   localStorage.setItem(FLAG, '1');
 })();
 
+// Patch existing '有酸素運動20種' entry to add YouTube URL if missing
+(function patchDefaultWorkoutYoutube() {
+  const YT_ID = 'fFQIIIKI8RA';
+  const lists = getWorkoutLists();
+  const idx = lists.findIndex(wl => wl.name === '有酸素運動20種');
+  if (idx !== -1 && !lists[idx].youtubeId) {
+    lists[idx].youtubeId = YT_ID;
+    lists[idx].youtubeTitle = '有酸素運動20種';
+    setWorkoutLists(lists);
+  }
+})();
+
 // Pre-register the 20-exercise aerobics workout on first launch
 (function initDefaultWorkout() {
   const WORKOUT_NAME = '有酸素運動20種';
@@ -2026,7 +2078,7 @@ document.querySelectorAll('.step-btn').forEach(btn => {
     p2Name: 'たつ',    p2Secs: 2
   }));
 
-  lists.unshift({ name: WORKOUT_NAME, youtubeId: '', youtubeTitle: '', list });
+  lists.unshift({ name: WORKOUT_NAME, youtubeId: 'fFQIIIKI8RA', youtubeTitle: '有酸素運動20種', list });
   setWorkoutLists(lists);
 })();
 
