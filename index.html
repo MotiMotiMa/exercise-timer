@@ -1803,91 +1803,34 @@ function applyYouTubeData() {
   toast('YouTube設定を反映しました');
 }
 
-function ytPlayIfReady() {
-  if (ytCurrentId && ytPlayer && typeof ytPlayer.playVideo === 'function') {
-    try { ytPlayer.playVideo(); } catch(e) {}
-  }
-}
-function ytPauseIfReady() {
-  if (ytPlayer && typeof ytPlayer.pauseVideo === 'function') {
-    try { ytPlayer.pauseVideo(); } catch(e) {}
-  }
-}
+// Plain iframe cannot be JS-controlled; these are retained for future HTTP-served use
+function ytPlayIfReady()  {}
+function ytPauseIfReady() {}
 
-/* ─── YouTube IFrame Player API ─── */
-let ytPlayer    = null;
+/* ─── YouTube plain iframe embed ─── */
+// IFrame Player API is intentionally not used: file:// protocol blocks postMessage
+// cross-origin communication that the API requires, causing error 153.
 let ytCurrentId = null;
-let ytApiReady  = false;
-let ytPendingId = null;
-
-window.onYouTubeIframeAPIReady = function() {
-  ytApiReady = true;
-  if (ytPendingId) { initYTPlayer(ytPendingId); ytPendingId = null; }
-};
-
-function loadYTApi() {
-  if (document.getElementById('yt-api-script')) return;
-  const tag = document.createElement('script');
-  tag.id = 'yt-api-script';
-  tag.src = 'https://www.youtube.com/iframe_api';
-  document.head.appendChild(tag);
-}
-
-function initYTPlayer(videoId) {
-  ytCurrentId = videoId;
-  document.getElementById('ytEmbedError').style.display = 'none';
-
-  if (ytPlayer) {
-    try { ytPlayer.loadVideoById(videoId); } catch(e) { ytPlayer = null; initYTPlayer(videoId); }
-    return;
-  }
-
-  ytPlayer = new YT.Player('ytPlayerDiv', {
-    height: '100%', width: '100%',
-    videoId: videoId,
-    playerVars: { rel: 0, modestbranding: 1, playsinline: 1 },
-    events: {
-      onError: function(e) { handleYTPlayerError(e.data); }
-    }
-  });
-}
-
-function handleYTPlayerError(code) {
-  const msgs = {
-    2:   '動画IDが無効です。URLを確認してください。',
-    5:   'HTML5プレーヤーでの再生に失敗しました。',
-    100: '動画が見つかりません（削除または非公開）。',
-    101: 'この動画は埋め込み再生が無効に設定されています。',
-    150: 'この動画は埋め込み再生が無効に設定されています。',
-    153: 'この動画は埋め込み再生が無効に設定されています（エラー 153）。'
-  };
-  const msg = msgs[code] || `動画を読み込めませんでした（エラー ${code}）。`;
-  document.getElementById('ytEmbedErrorMsg').textContent = msg;
-  if (ytCurrentId) {
-    document.getElementById('ytOpenLink').href = `https://www.youtube.com/watch?v=${ytCurrentId}`;
-  }
-  document.getElementById('ytEmbedError').style.display = 'flex';
-}
 
 function setYouTubeVideo(videoId, title) {
   if (!videoId) return;
+  ytCurrentId = videoId;
   document.getElementById('ytBarTitle').textContent = title || videoId;
   document.getElementById('ytToggleBtn').style.display = 'flex';
   document.getElementById('ytPanel').classList.add('open');
+  document.getElementById('ytEmbedError').style.display = 'none';
 
-  if (typeof YT !== 'undefined' && YT.Player) {
-    initYTPlayer(videoId);
-  } else {
-    ytPendingId = videoId;
-    loadYTApi();
+  const playerEl = document.getElementById('ytPlayerDiv');
+  if (playerEl) {
+    playerEl.innerHTML =
+      `<iframe src="https://www.youtube.com/embed/${videoId}?playsinline=1&rel=0&modestbranding=1"` +
+      ` frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"` +
+      ` allowfullscreen style="position:absolute;inset:0;width:100%;height:100%;border:none;"></iframe>`;
   }
 }
 
 function closeYtPanel() {
   document.getElementById('ytPanel').classList.remove('open');
-  if (ytPlayer && typeof ytPlayer.pauseVideo === 'function') {
-    try { ytPlayer.pauseVideo(); } catch(e) {}
-  }
 }
 
 /* ═══════════════════════════════════════════
@@ -2044,7 +1987,7 @@ document.querySelectorAll('.step-btn').forEach(btn => {
   localStorage.setItem(FLAG, '1');
 })();
 
-// Patch existing '有酸素運動20種' entry to add YouTube URL if missing
+// Ensure '有酸素運動20種' has the YouTube ID set
 (function patchDefaultWorkoutYoutube() {
   const YT_ID = 'fFQIIIKI8RA';
   const lists = getWorkoutLists();
