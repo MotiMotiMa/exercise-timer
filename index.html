@@ -434,6 +434,41 @@
       display: flex; align-items: center; justify-content: center; transition: all 0.12s ease;
     }
     .preset-del:hover { color: var(--danger); background: rgba(255,85,85,0.1); }
+    .preset-edit-btn {
+      width: 22px; height: 22px; flex-shrink: 0; background: transparent; border: none;
+      color: var(--text-dim); cursor: pointer; font-size: 13px; border-radius: 4px;
+      display: flex; align-items: center; justify-content: center; transition: all 0.12s ease;
+    }
+    .preset-edit-btn:hover { color: var(--accent); background: var(--accent-dim); }
+    .preset-edit-form {
+      display: none; flex-direction: column; gap: 8px;
+      padding: 10px 12px 12px; background: var(--bg-elevated);
+      border: 1px solid var(--border-mid); border-radius: 8px; margin-top: -2px;
+    }
+    .preset-edit-form.open { display: flex; }
+    .preset-edit-row { display: flex; align-items: center; gap: 6px; }
+    .preset-edit-lbl { font-size: 10px; color: var(--text-muted); width: 80px; flex-shrink: 0; }
+    .preset-edit-input {
+      flex: 1; background: var(--bg-panel); border: 1px solid var(--border);
+      color: var(--text); border-radius: 6px; padding: 5px 8px; font-size: 13px;
+      font-family: var(--font-jp); outline: none; transition: border-color 0.14s ease;
+    }
+    .preset-edit-input:focus { border-color: var(--accent); }
+    .preset-edit-actions { display: flex; gap: 6px; justify-content: flex-end; margin-top: 2px; }
+    .preset-edit-save {
+      font-size: 11px; padding: 5px 12px; background: var(--accent-dim);
+      border: 1px solid rgba(200,245,122,0.25); color: var(--accent);
+      border-radius: 6px; cursor: pointer; font-family: var(--font-jp); font-weight: 700;
+      transition: all 0.14s ease;
+    }
+    .preset-edit-save:hover { background: rgba(200,245,122,0.18); }
+    .preset-edit-cancel {
+      font-size: 11px; padding: 5px 12px; background: transparent;
+      border: 1px solid var(--border); color: var(--text-muted);
+      border-radius: 6px; cursor: pointer; font-family: var(--font-jp);
+      transition: all 0.14s ease;
+    }
+    .preset-edit-cancel:hover { border-color: var(--border-mid); color: var(--text); }
     .empty-msg { text-align: center; padding: 14px; color: var(--text-dim); font-size: 12px; }
 
     /* ─── COMPLETE ─── */
@@ -576,6 +611,24 @@
       display: flex; align-items: center; justify-content: center; transition: all 0.12s ease;
     }
     .wk-saved-del:hover { color: var(--danger); background: rgba(255,85,85,0.1); }
+
+    .wk-from-preset-row { display: flex; gap: 8px; align-items: center; }
+    .wk-preset-select {
+      flex: 1; background: var(--bg-elevated); border: 1px solid var(--border);
+      color: var(--text); font-family: var(--font-jp); font-size: 13px;
+      padding: 9px 10px; border-radius: 8px; outline: none;
+      transition: border-color 0.15s ease; cursor: pointer;
+      appearance: none; -webkit-appearance: none;
+    }
+    .wk-preset-select:focus { border-color: var(--accent); }
+    .wk-preset-select option { background: var(--bg-elevated); color: var(--text); }
+    .wk-preset-add-btn {
+      padding: 9px 14px; border-radius: 8px; cursor: pointer; white-space: nowrap; flex-shrink: 0;
+      font-family: var(--font-jp); font-size: 12px; font-weight: 700;
+      background: var(--accent-dim); border: 1px solid rgba(200,245,122,0.25); color: var(--accent);
+      transition: all 0.14s ease;
+    }
+    .wk-preset-add-btn:hover { background: rgba(200,245,122,0.2); }
 
     /* workout progress badge in main ui */
     .workout-progress {
@@ -853,6 +906,13 @@
   <div class="sheet-body">
 
     <button class="wk-add-btn" id="wkAddBtn">＋ 現在の設定をリストに追加</button>
+
+    <div class="wk-from-preset-row">
+      <select class="wk-preset-select" id="wkPresetSelect">
+        <option value="">保存メニューから選択...</option>
+      </select>
+      <button class="wk-preset-add-btn" id="wkPresetAddBtn">追加</button>
+    </div>
 
     <div class="section-head">リスト編集</div>
     <div class="wk-list" id="wkList">
@@ -1335,22 +1395,61 @@ function renderPresets() {
   if (!prs.length) { el.innerHTML = '<div class="empty-msg">保存されたメニューはありません</div>'; return; }
   el.innerHTML = '';
   prs.forEach((p, i) => {
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'display:flex;flex-direction:column;gap:4px;';
+
     const item = document.createElement('div');
     item.className = 'preset-item';
     const secsText = p.phaseMode ? `${p.p1Secs}+${p.p2Secs}s` : `${p.secs}s`;
     item.innerHTML =
       `<span class="preset-name">${p.name}</span>` +
-      `<span class="preset-meta">${p.reps}回×${p.sets}set/${secsText}</span>` +
+      `<span class="preset-meta">${p.reps}回×${p.sets}set/${secsText}・休憩${p.rest}s</span>` +
+      `<button class="preset-edit-btn" title="編集">✎</button>` +
       `<button class="preset-del" data-i="${i}">✕</button>`;
+
+    const form = document.createElement('div');
+    form.className = 'preset-edit-form';
+    const secsVal = p.phaseMode ? p.p1Secs : (p.secs || 3);
+    form.innerHTML =
+      `<div class="preset-edit-row"><span class="preset-edit-lbl">運動名</span><input class="preset-edit-input" data-f="name" type="text" value="${p.name}"></div>` +
+      `<div class="preset-edit-row"><span class="preset-edit-lbl">秒数/回</span><input class="preset-edit-input" data-f="secs" type="number" min="1" value="${secsVal}"></div>` +
+      `<div class="preset-edit-row"><span class="preset-edit-lbl">目標回数</span><input class="preset-edit-input" data-f="reps" type="number" min="1" value="${p.reps}"></div>` +
+      `<div class="preset-edit-row"><span class="preset-edit-lbl">セット数</span><input class="preset-edit-input" data-f="sets" type="number" min="1" value="${p.sets}"></div>` +
+      `<div class="preset-edit-row"><span class="preset-edit-lbl">休憩時間(秒)</span><input class="preset-edit-input" data-f="rest" type="number" min="0" value="${p.rest}"></div>` +
+      `<div class="preset-edit-actions"><button class="preset-edit-cancel">キャンセル</button><button class="preset-edit-save">保存する</button></div>`;
+
     item.addEventListener('click', (e) => {
-      if (e.target.classList.contains('preset-del')) return;
+      if (e.target.classList.contains('preset-del') || e.target.classList.contains('preset-edit-btn')) return;
       fillSettingsForm(prs[i]);
       toast(`「${prs[i].name}」を読み込みました`);
+    });
+    item.querySelector('.preset-edit-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      form.classList.toggle('open');
+      item.style.cursor = form.classList.contains('open') ? 'default' : 'pointer';
     });
     item.querySelector('.preset-del').addEventListener('click', () => {
       const arr = getPresets(); arr.splice(i, 1); setPresets(arr); renderPresets();
     });
-    el.appendChild(item);
+    form.querySelector('.preset-edit-cancel').addEventListener('click', () => {
+      form.classList.remove('open');
+      item.style.cursor = 'pointer';
+    });
+    form.querySelector('.preset-edit-save').addEventListener('click', () => {
+      const updated = {...prs[i]};
+      form.querySelectorAll('.preset-edit-input').forEach(inp => {
+        const f = inp.dataset.f;
+        if (f === 'name') updated.name = inp.value.trim() || updated.name;
+        else updated[f] = Math.max(f === 'rest' ? 0 : 1, +inp.value || 1);
+      });
+      if (!updated.phaseMode) updated.secs = updated.secs;
+      const arr = getPresets(); arr[i] = updated; setPresets(arr); renderPresets();
+      toast(`「${updated.name}」を更新しました`);
+    });
+
+    wrap.appendChild(item);
+    wrap.appendChild(form);
+    el.appendChild(wrap);
   });
 }
 
@@ -1447,9 +1546,23 @@ function renderSavedWorkouts() {
   });
 }
 
+function renderPresetSelect() {
+  const sel = document.getElementById('wkPresetSelect');
+  const prs = getPresets();
+  sel.innerHTML = '<option value="">保存メニューから選択...</option>';
+  prs.forEach((p, i) => {
+    const secsText = p.phaseMode ? `${p.p1Secs}+${p.p2Secs}s` : `${p.secs}s`;
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = `${p.name}（${p.reps}回×${p.sets}set/${secsText}）`;
+    sel.appendChild(opt);
+  });
+}
+
 function openWorkoutPanel() {
   renderWorkoutList();
   renderSavedWorkouts();
+  renderPresetSelect();
   document.getElementById('workoutSheet').classList.add('open');
   document.getElementById('overlay').classList.add('open');
   document.getElementById('overlay')._target = 'workout';
@@ -1761,6 +1874,18 @@ document.getElementById('wkAddBtn').addEventListener('click', () => {
   renderWorkoutList();
   toast(`「${S.cfg.name}」をリストに追加しました`);
 });
+
+document.getElementById('wkPresetAddBtn').addEventListener('click', () => {
+  const sel = document.getElementById('wkPresetSelect');
+  if (sel.value === '') { toast('メニューを選択してください'); return; }
+  const prs = getPresets();
+  const p = prs[+sel.value];
+  if (!p) return;
+  S.workoutList.push({...p});
+  renderWorkoutList();
+  sel.value = '';
+  toast(`「${p.name}」をリストに追加しました`);
+});
 document.getElementById('wkPlayBtn').addEventListener('click', startWorkout);
 document.getElementById('wkSaveBtn').addEventListener('click', () => {
   if (!S.workoutList.length) { toast('リストに運動を追加してください'); return; }
@@ -1844,6 +1969,40 @@ document.querySelectorAll('.step-btn').forEach(btn => {
 /* ═══════════════════════════════════════════
    INIT
 ═══════════════════════════════════════════ */
+
+// Pre-register 20 individual exercise presets on first launch
+(function initDefaultPresets() {
+  const FLAG = 'exTimer_defaultPresets_v1';
+  if (localStorage.getItem(FLAG)) return;
+  const defaults = [
+    { name: 'その場で足踏み',             secs: 20, reps: 1, sets: 1, rest: 10 },
+    { name: 'ニーアップ',                 secs: 20, reps: 1, sets: 1, rest: 10 },
+    { name: 'バットキック',               secs: 20, reps: 1, sets: 1, rest: 10 },
+    { name: 'サイドからニーアップ',       secs:  1, reps: 1, sets: 1, rest: 10 },
+    { name: 'ショルダープレス',           secs: 20, reps: 1, sets: 1, rest: 10 },
+    { name: '肩甲骨寄せ&剥がし',          secs: 20, reps: 1, sets: 1, rest: 10 },
+    { name: 'アームサークル横',           secs: 20, reps: 1, sets: 1, rest: 10 },
+    { name: 'アームサークル上',           secs: 20, reps: 1, sets: 1, rest: 10 },
+    { name: '風車',                       secs: 20, reps: 1, sets: 1, rest: 10 },
+    { name: 'カーフレイズ',               secs: 20, reps: 1, sets: 1, rest: 10 },
+    { name: 'サイドホップ',               secs: 20, reps: 1, sets: 1, rest: 10 },
+    { name: '前方ランジ',                 secs: 20, reps: 1, sets: 1, rest: 10 },
+    { name: 'アッパーカット',             secs: 20, reps: 1, sets: 1, rest: 10 },
+    { name: 'スタンディングアブズ',       secs: 20, reps: 1, sets: 1, rest: 10 },
+    { name: 'スタンディングサイドクランチ', secs: 20, reps: 1, sets: 1, rest: 10 },
+    { name: '逆腹筋',                     secs: 20, reps: 1, sets: 1, rest: 10 },
+    { name: '股割りストレッチ',           secs: 20, reps: 1, sets: 1, rest: 10 },
+    { name: 'ハーフスクワット',           secs: 20, reps: 1, sets: 1, rest: 10 },
+    { name: 'スクワット&リーチ',          secs: 20, reps: 1, sets: 1, rest: 10 },
+    { name: 'ワイドスクワット',           secs: 20, reps: 1, sets: 1, rest: 10 }
+  ];
+  const existing = getPresets();
+  const toAdd = defaults
+    .filter(d => !existing.some(e => e.name === d.name))
+    .map(d => ({ ...d, phaseMode: false, p1Name: 'しゃがむ', p1Secs: 3, p2Name: 'たつ', p2Secs: 2 }));
+  setPresets([...existing, ...toAdd]);
+  localStorage.setItem(FLAG, '1');
+})();
 
 // Pre-register the 20-exercise aerobics workout on first launch
 (function initDefaultWorkout() {
