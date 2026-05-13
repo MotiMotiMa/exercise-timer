@@ -1,0 +1,1887 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>運動タイマー</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@300;400;500;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #090909;
+      --bg-elevated: #1a1a1a;
+      --bg-panel: #131313;
+      --accent: #c8f57a;
+      --accent-dim: rgba(200,245,122,0.12);
+      --accent-glow: rgba(200,245,122,0.35);
+      --phase2: #f5c87a;
+      --phase2-dim: rgba(245,200,122,0.12);
+      --phase2-glow: rgba(245,200,122,0.35);
+      --text: #efefef;
+      --text-muted: #686868;
+      --text-dim: #383838;
+      --border: #1f1f1f;
+      --border-mid: #2a2a2a;
+      --rest-color: #7ab8f5;
+      --rest-glow: rgba(122,184,245,0.35);
+      --danger: #ff5555;
+      --font-jp: 'Zen Kaku Gothic New', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%; background: var(--bg); color: var(--text);
+      font-family: var(--font-jp); overflow-x: hidden;
+      -webkit-tap-highlight-color: transparent;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body::before {
+      content: ''; position: fixed; inset: 0;
+      background-image: radial-gradient(circle at 1px 1px, rgba(255,255,255,0.025) 1px, transparent 0);
+      background-size: 28px 28px; pointer-events: none; z-index: 0;
+    }
+
+    #app { position: relative; z-index: 1; min-height: 100vh; display: flex; flex-direction: column; align-items: center; }
+
+    .container { width: 100%; max-width: 480px; min-height: 100vh; display: flex; flex-direction: column; }
+
+    /* ─── HEADER ─── */
+    .header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 18px; border-bottom: 1px solid var(--border);
+      background: rgba(9,9,9,0.85); backdrop-filter: blur(12px);
+      position: sticky; top: 0; z-index: 20;
+    }
+
+    .header-brand { display: flex; align-items: baseline; gap: 6px; }
+    .header-title { font-size: 13px; font-weight: 900; letter-spacing: 0.25em; text-transform: uppercase; color: var(--accent); }
+    .header-sub   { font-size: 10px; color: var(--text-muted); letter-spacing: 0.15em; }
+    .header-btns  { display: flex; gap: 6px; }
+
+    .icon-btn {
+      width: 34px; height: 34px; border: 1px solid var(--border);
+      background: var(--bg-elevated); color: var(--text-muted); border-radius: 8px;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      font-size: 15px; transition: all 0.15s ease; flex-shrink: 0;
+    }
+    .icon-btn:hover { border-color: var(--border-mid); color: var(--text); }
+    .icon-btn.muted { color: var(--danger); border-color: rgba(255,85,85,0.3); background: rgba(255,85,85,0.08); }
+
+    /* ─── YOUTUBE PANEL ─── */
+    .yt-panel {
+      width: 100%; overflow: hidden;
+      max-height: 0; transition: max-height 0.4s cubic-bezier(0.4,0,0.2,1);
+    }
+    .yt-panel.open { max-height: 280px; }
+
+    .yt-iframe-wrap {
+      position: relative; width: 100%; padding-top: 56.25%;
+      background: #000;
+    }
+    /* YT IFrame API replaces the div with an iframe */
+    .yt-iframe-wrap > div,
+    .yt-iframe-wrap > iframe {
+      position: absolute; inset: 0; width: 100%; height: 100%; border: none;
+    }
+
+    .yt-embed-error {
+      position: absolute; inset: 0; background: #0d0d0d;
+      display: none; flex-direction: column; align-items: center; justify-content: center;
+      gap: 10px; padding: 20px; text-align: center;
+    }
+    .yt-embed-error-icon { font-size: 28px; }
+    .yt-embed-error-msg  { font-size: 13px; color: var(--text-muted); line-height: 1.6; }
+    .yt-open-link {
+      display: inline-block; padding: 8px 18px; border-radius: 7px;
+      background: var(--accent-dim); border: 1px solid rgba(200,245,122,0.25);
+      color: var(--accent); font-size: 12px; font-weight: 700;
+      text-decoration: none; font-family: var(--font-jp);
+      transition: background 0.14s ease;
+    }
+    .yt-open-link:hover { background: rgba(200,245,122,0.2); }
+
+    .yt-bar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 6px 14px; background: rgba(0,0,0,0.4);
+      border-bottom: 1px solid var(--border);
+    }
+    .yt-bar-title { font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
+    .yt-bar-close {
+      width: 22px; height: 22px; flex-shrink: 0; border: none;
+      background: transparent; color: var(--text-muted); cursor: pointer;
+      font-size: 12px; margin-left: 8px;
+    }
+
+    /* ─── MAIN ─── */
+    main {
+      flex: 1; display: flex; flex-direction: column; align-items: center;
+      padding: 20px 18px 8px; gap: 14px;
+    }
+
+    .exercise-info { width: 100%; text-align: center; }
+    .exercise-name { font-size: 22px; font-weight: 700; letter-spacing: 0.04em; color: var(--text); }
+    .set-row { margin-top: 8px; display: flex; align-items: center; justify-content: center; gap: 6px; }
+    .set-label { font-size: 11px; color: var(--text-muted); letter-spacing: 0.12em; font-weight: 500; }
+    .dot-track { display: flex; align-items: center; gap: 5px; }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--border-mid); transition: all 0.35s ease; }
+    .dot.done { background: var(--accent); box-shadow: 0 0 6px var(--accent-glow); }
+    .dot.current { width: 20px; border-radius: 4px; background: var(--accent); }
+
+    /* ─── RING ─── */
+    .ring-wrap {
+      position: relative;
+      width: min(70vw, 260px); height: min(70vw, 260px); flex-shrink: 0;
+    }
+    .ring-svg { width: 100%; height: 100%; transform: rotate(-90deg); overflow: visible; }
+    .ring-track { fill: none; stroke: #1c1c1c; stroke-width: 9; }
+    .ring-bg-glow { fill: none; stroke: var(--accent); stroke-width: 9; opacity: 0; transition: opacity 0.4s ease; }
+    .ring-bg-glow.on { opacity: 0.06; }
+    .ring-progress {
+      fill: none; stroke: var(--accent); stroke-width: 9; stroke-linecap: round;
+      stroke-dasharray: 753.98; stroke-dashoffset: 753.98;
+      transition: stroke-dashoffset 0.12s linear, stroke 0.35s ease, filter 0.35s ease;
+      filter: drop-shadow(0 0 10px var(--accent-glow));
+    }
+    .ring-progress.phase2 { stroke: var(--phase2); filter: drop-shadow(0 0 10px var(--phase2-glow)); }
+    .ring-progress.rest   { stroke: var(--rest-color); filter: drop-shadow(0 0 10px var(--rest-glow)); }
+    .ring-progress.flash  { animation: ringFlash 0.28s ease; }
+
+    @keyframes ringFlash {
+      0%   { stroke: #ffffff; filter: drop-shadow(0 0 18px rgba(255,255,255,0.7)); }
+      100% { stroke: var(--accent); filter: drop-shadow(0 0 10px var(--accent-glow)); }
+    }
+
+    .ring-center {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+    }
+    .rep-label { font-size: 9px; font-weight: 700; letter-spacing: 0.28em; color: var(--text-muted); text-transform: uppercase; margin-bottom: 2px; }
+    .rep-num {
+      font-family: var(--font-mono); font-size: clamp(50px, 15vw, 68px);
+      font-weight: 700; color: var(--accent); line-height: 1; letter-spacing: -0.02em;
+      transition: color 0.3s ease;
+    }
+    .rep-num.rest-color { color: var(--rest-color); }
+    .rep-num.pulse { animation: numPulse 0.32s cubic-bezier(0.3,0,0.2,1.4); }
+
+    @keyframes numPulse {
+      0%  { transform: scale(1); }
+      40% { transform: scale(1.25); }
+      100%{ transform: scale(1); }
+    }
+    .rep-denom { font-family: var(--font-mono); font-size: 12px; color: var(--text-dim); margin-top: 3px; }
+
+    /* phase badge */
+    .phase-badge {
+      margin-top: 5px; padding: 2px 8px;
+      border-radius: 4px; font-size: 10px; font-weight: 700; letter-spacing: 0.1em;
+      opacity: 0; transition: all 0.25s ease; border: 1px solid transparent;
+    }
+    .phase-badge.show { opacity: 1; }
+    .phase-badge.p1 { color: var(--accent); border-color: rgba(200,245,122,0.3); background: var(--accent-dim); }
+    .phase-badge.p2 { color: var(--phase2); border-color: rgba(245,200,122,0.3); background: var(--phase2-dim); }
+
+    /* ─── TIME DISPLAY ─── */
+    .time-row { display: flex; align-items: baseline; gap: 10px; font-family: var(--font-mono); }
+    .t-elapsed { font-size: 26px; font-weight: 700; color: var(--text); letter-spacing: -0.02em; }
+    .t-sep   { font-size: 13px; color: var(--text-dim); }
+    .t-remain{ font-size: 13px; color: var(--text-muted); }
+
+    /* ─── INSTRUCTION ─── */
+    .instr {
+      font-size: 15px; font-weight: 500; letter-spacing: 0.04em;
+      color: var(--text-muted); text-align: center; min-height: 26px;
+      transition: color 0.3s ease;
+    }
+    .instr.active-instr { color: var(--accent); }
+    .instr.p2-instr     { color: var(--phase2); }
+    .instr.rest-instr   { color: var(--rest-color); }
+
+    /* ─── CONTROLS ─── */
+    .controls { display: flex; gap: 10px; padding: 12px 18px 32px; width: 100%; }
+    .btn {
+      border: none; cursor: pointer; font-family: var(--font-jp); font-weight: 700;
+      border-radius: 12px; display: flex; align-items: center; justify-content: center; gap: 6px;
+      transition: all 0.14s ease; position: relative; overflow: hidden;
+    }
+    .btn::after { content: ''; position: absolute; inset: 0; background: white; opacity: 0; transition: opacity 0.1s ease; }
+    .btn:active::after { opacity: 0.06; }
+    .btn-play {
+      flex: 1; height: 54px; font-size: 15px; letter-spacing: 0.1em;
+      background: var(--accent); color: #0a0a0a;
+      box-shadow: 0 0 22px var(--accent-glow);
+    }
+    .btn-play:hover { box-shadow: 0 0 32px rgba(200,245,122,0.55); transform: translateY(-1px); }
+    .btn-play:active { transform: translateY(0); }
+    .btn-play:disabled { opacity: 0.55; pointer-events: none; }
+    .btn-icon {
+      width: 54px; height: 54px; font-size: 18px;
+      background: var(--bg-elevated); color: var(--text-muted); border: 1px solid var(--border);
+    }
+    .btn-icon:hover { border-color: var(--border-mid); color: var(--text); }
+    .btn-icon.btn-stop:hover { border-color: rgba(255,85,85,0.4); color: var(--danger); }
+
+    /* ─── SETTINGS SHEET ─── */
+    .overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.65); backdrop-filter: blur(5px);
+      z-index: 50; opacity: 0; pointer-events: none; transition: opacity 0.3s ease;
+    }
+    .overlay.open { opacity: 1; pointer-events: all; }
+
+    .settings-sheet {
+      position: fixed; bottom: 0; left: 50%; z-index: 51;
+      transform: translateX(-50%) translateY(100%);
+      width: 100%; max-width: 480px;
+      background: var(--bg-panel); border: 1px solid var(--border); border-bottom: none;
+      border-radius: 20px 20px 0 0; max-height: 92vh; overflow-y: auto;
+      transition: transform 0.38s cubic-bezier(0.32,0.72,0,1);
+    }
+    .settings-sheet.open { transform: translateX(-50%) translateY(0); }
+
+    .sheet-handle { width: 34px; height: 4px; background: var(--border-mid); border-radius: 2px; margin: 12px auto 0; }
+    .sheet-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 18px; border-bottom: 1px solid var(--border);
+    }
+    .sheet-title { font-size: 12px; font-weight: 900; letter-spacing: 0.2em; text-transform: uppercase; color: var(--accent); }
+    .sheet-close {
+      width: 28px; height: 28px; border: none; background: var(--bg-elevated);
+      color: var(--text-muted); border-radius: 6px; cursor: pointer; font-size: 13px;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    .sheet-body { padding: 18px 18px 28px; display: flex; flex-direction: column; gap: 14px; }
+
+    /* section dividers */
+    .section-head {
+      display: flex; align-items: center; gap: 10px;
+      font-size: 10px; font-weight: 900; letter-spacing: 0.22em;
+      text-transform: uppercase; color: var(--text-muted); margin-top: 4px;
+    }
+    .section-head::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+    .field { display: flex; flex-direction: column; gap: 6px; }
+    .field-lbl { font-size: 10px; font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase; color: var(--text-muted); }
+    .field-input {
+      background: var(--bg-elevated); border: 1px solid var(--border);
+      color: var(--text); font-family: var(--font-jp); font-size: 15px;
+      padding: 11px 13px; border-radius: 9px; outline: none; width: 100%;
+      transition: border-color 0.15s ease;
+    }
+    .field-input:focus { border-color: var(--accent); }
+    .field-input::placeholder { color: var(--text-dim); }
+
+    .fields-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+    .stepper {
+      display: flex; align-items: center; background: var(--bg-elevated);
+      border: 1px solid var(--border); border-radius: 9px; overflow: hidden;
+      transition: border-color 0.15s ease;
+    }
+    .stepper:focus-within { border-color: var(--accent); }
+    .step-btn {
+      width: 38px; height: 44px; flex-shrink: 0; background: transparent; border: none;
+      color: var(--text-muted); font-size: 17px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; transition: color 0.12s ease;
+    }
+    .step-btn:hover { color: var(--accent); }
+    .step-input {
+      flex: 1; background: transparent; border: none; color: var(--text);
+      font-family: var(--font-mono); font-size: 16px; font-weight: 700;
+      text-align: center; outline: none; min-width: 0;
+    }
+
+    /* toggle switch */
+    .toggle-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 11px 14px; background: var(--bg-elevated); border: 1px solid var(--border);
+      border-radius: 9px; cursor: pointer; transition: border-color 0.15s ease;
+    }
+    .toggle-row:hover { border-color: var(--border-mid); }
+    .toggle-label { font-size: 14px; font-weight: 500; }
+    .toggle-sub   { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+    .toggle-switch { position: relative; width: 38px; height: 22px; flex-shrink: 0; }
+    .toggle-switch input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider {
+      position: absolute; inset: 0; background: var(--border-mid);
+      border-radius: 11px; transition: background 0.2s ease;
+    }
+    .toggle-slider::before {
+      content: ''; position: absolute; width: 16px; height: 16px;
+      border-radius: 50%; background: #fff; bottom: 3px; left: 3px;
+      transition: transform 0.2s ease;
+    }
+    input:checked + .toggle-slider { background: var(--accent); }
+    input:checked + .toggle-slider::before { transform: translateX(16px); }
+
+    /* phase fields */
+    .phase-fields { display: flex; flex-direction: column; gap: 10px; }
+    .phase-row { display: grid; grid-template-columns: 1fr 100px; gap: 8px; align-items: end; }
+    .phase-row-label {
+      font-size: 11px; font-weight: 700; letter-spacing: 0.12em;
+      padding: 5px 0; display: flex; align-items: center; gap: 6px;
+    }
+    .phase-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .phase-dot.p1 { background: var(--accent); box-shadow: 0 0 4px var(--accent-glow); }
+    .phase-dot.p2 { background: var(--phase2); box-shadow: 0 0 4px var(--phase2-glow); }
+
+    .apply-btn {
+      width: 100%; padding: 13px; background: var(--accent); color: #0a0a0a;
+      border: none; border-radius: 9px; font-family: var(--font-jp); font-size: 15px;
+      font-weight: 900; letter-spacing: 0.1em; cursor: pointer;
+      transition: all 0.14s ease; margin-top: 2px;
+    }
+    .apply-btn:hover { box-shadow: 0 0 22px var(--accent-glow); }
+
+    /* YouTube section */
+    .yt-section { display: flex; flex-direction: column; gap: 10px; }
+    .yt-input-row { display: flex; gap: 8px; }
+    .yt-input-row .field-input { flex: 1; }
+
+    .yt-fetch-btn {
+      flex-shrink: 0; padding: 0 14px; height: 46px;
+      background: var(--bg-elevated); border: 1px solid var(--border);
+      color: var(--text-muted); border-radius: 9px; cursor: pointer;
+      font-family: var(--font-jp); font-size: 13px; font-weight: 700;
+      transition: all 0.14s ease; white-space: nowrap;
+    }
+    .yt-fetch-btn:hover { border-color: var(--border-mid); color: var(--text); }
+    .yt-fetch-btn.loading { opacity: 0.6; pointer-events: none; }
+
+    .yt-status { font-size: 12px; color: var(--text-muted); min-height: 18px; }
+    .yt-status.ok  { color: var(--accent); }
+    .yt-status.err { color: var(--danger); }
+
+    .yt-result {
+      background: var(--bg-elevated); border: 1px solid var(--border);
+      border-radius: 9px; padding: 12px 14px;
+      display: none; flex-direction: column; gap: 8px;
+    }
+    .yt-result.show { display: flex; }
+
+    .yt-result-title {
+      font-size: 13px; font-weight: 700; color: var(--text);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+
+    .yt-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+    .yt-tag {
+      padding: 3px 10px; border-radius: 5px;
+      font-size: 11px; font-family: var(--font-mono); font-weight: 700;
+      background: var(--accent-dim); color: var(--accent);
+      border: 1px solid rgba(200,245,122,0.2);
+    }
+
+    .yt-apply-btn {
+      width: 100%; padding: 10px; border: none; border-radius: 8px;
+      background: var(--accent-dim); color: var(--accent);
+      border: 1px solid rgba(200,245,122,0.25); font-family: var(--font-jp);
+      font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.14s ease;
+    }
+    .yt-apply-btn:hover { background: rgba(200,245,122,0.18); }
+
+    .yt-manual-btn {
+      font-size: 11px; color: var(--text-muted); background: none; border: none;
+      cursor: pointer; text-decoration: underline; text-align: left;
+      font-family: var(--font-jp); padding: 0;
+    }
+
+    /* manual description textarea */
+    .yt-manual-area { display: none; flex-direction: column; gap: 6px; }
+    .yt-manual-area.show { display: flex; }
+    .yt-textarea {
+      background: var(--bg-elevated); border: 1px solid var(--border);
+      color: var(--text); font-family: var(--font-jp); font-size: 13px;
+      padding: 10px 12px; border-radius: 9px; outline: none; width: 100%;
+      resize: vertical; min-height: 80px; transition: border-color 0.15s ease;
+    }
+    .yt-textarea:focus { border-color: var(--accent); }
+    .yt-parse-btn {
+      align-self: flex-end; padding: 8px 16px; background: var(--bg-elevated);
+      border: 1px solid var(--border); color: var(--text-muted); border-radius: 7px;
+      cursor: pointer; font-family: var(--font-jp); font-size: 12px; font-weight: 700;
+      transition: all 0.14s ease;
+    }
+    .yt-parse-btn:hover { border-color: var(--border-mid); color: var(--text); }
+
+    /* presets */
+    .presets-block { border-top: 1px solid var(--border); padding-top: 14px; }
+    .presets-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+    .presets-lbl { font-size: 10px; font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase; color: var(--text-muted); }
+    .save-btn {
+      font-size: 11px; padding: 5px 11px; background: var(--accent-dim);
+      border: 1px solid rgba(200,245,122,0.25); color: var(--accent);
+      border-radius: 6px; cursor: pointer; font-family: var(--font-jp); font-weight: 700;
+      transition: all 0.14s ease;
+    }
+    .save-btn:hover { background: rgba(200,245,122,0.18); }
+    .preset-list { display: flex; flex-direction: column; gap: 6px; }
+    .preset-item {
+      display: flex; align-items: center; gap: 8px; padding: 10px 12px;
+      background: var(--bg-elevated); border: 1px solid var(--border);
+      border-radius: 8px; cursor: pointer; transition: all 0.14s ease;
+    }
+    .preset-item:hover { border-color: var(--border-mid); }
+    .preset-name { flex: 1; font-size: 14px; font-weight: 500; }
+    .preset-meta { font-size: 10px; color: var(--text-muted); font-family: var(--font-mono); }
+    .preset-del {
+      width: 22px; height: 22px; flex-shrink: 0; background: transparent; border: none;
+      color: var(--text-dim); cursor: pointer; font-size: 11px; border-radius: 4px;
+      display: flex; align-items: center; justify-content: center; transition: all 0.12s ease;
+    }
+    .preset-del:hover { color: var(--danger); background: rgba(255,85,85,0.1); }
+    .empty-msg { text-align: center; padding: 14px; color: var(--text-dim); font-size: 12px; }
+
+    /* ─── COMPLETE ─── */
+    .complete-screen {
+      position: fixed; inset: 0; z-index: 100;
+      background: rgba(0,0,0,0.88); backdrop-filter: blur(8px);
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+      opacity: 0; pointer-events: none; transition: opacity 0.4s ease;
+    }
+    .complete-screen.show { opacity: 1; pointer-events: all; }
+    .complete-emoji { font-size: 60px; animation: bounceIn 0.55s cubic-bezier(0.34,1.56,0.64,1) both; }
+    @keyframes bounceIn { from { transform: scale(0.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    .complete-title { font-size: 30px; font-weight: 900; color: var(--accent); letter-spacing: 0.1em; }
+    .complete-stats { font-size: 14px; color: var(--text-muted); text-align: center; line-height: 2; white-space: pre-line; }
+    .complete-close {
+      margin-top: 6px; padding: 13px 36px; background: var(--accent); color: #0a0a0a;
+      border: none; border-radius: 12px; font-family: var(--font-jp); font-size: 15px;
+      font-weight: 900; cursor: pointer; letter-spacing: 0.1em; transition: all 0.14s ease;
+    }
+    .complete-close:hover { box-shadow: 0 0 22px var(--accent-glow); }
+
+    /* ─── TOAST ─── */
+    .toast {
+      position: fixed; top: 64px; left: 50%;
+      transform: translateX(-50%) translateY(-12px);
+      background: var(--bg-elevated); border: 1px solid var(--border-mid);
+      padding: 9px 18px; border-radius: 8px; font-size: 12px; color: var(--text);
+      letter-spacing: 0.05em; opacity: 0; transition: all 0.25s ease;
+      z-index: 200; white-space: nowrap;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    ::-webkit-scrollbar { width: 3px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border-mid); border-radius: 2px; }
+
+    /* ─── WORKOUT PANEL ─── */
+    .workout-sheet {
+      position: fixed; bottom: 0; left: 50%; z-index: 51;
+      transform: translateX(-50%) translateY(100%);
+      width: 100%; max-width: 480px;
+      background: var(--bg-panel); border: 1px solid var(--border); border-bottom: none;
+      border-radius: 20px 20px 0 0; max-height: 92vh; overflow-y: auto;
+      transition: transform 0.38s cubic-bezier(0.32,0.72,0,1);
+    }
+    .workout-sheet.open { transform: translateX(-50%) translateY(0); }
+
+    .wk-add-btn {
+      width: 100%; padding: 11px 14px;
+      background: var(--accent-dim); border: 1px solid rgba(200,245,122,0.25);
+      color: var(--accent); border-radius: 9px; cursor: pointer;
+      font-family: var(--font-jp); font-size: 14px; font-weight: 700;
+      letter-spacing: 0.05em; transition: all 0.14s ease; text-align: center;
+    }
+    .wk-add-btn:hover { background: rgba(200,245,122,0.2); }
+
+    .wk-list { display: flex; flex-direction: column; gap: 6px; }
+
+    .wk-item {
+      display: flex; align-items: center; gap: 8px; padding: 10px 12px;
+      background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 9px;
+      transition: border-color 0.15s ease;
+    }
+    .wk-item.active-item { border-color: var(--accent); background: rgba(200,245,122,0.05); }
+
+    .wk-num {
+      width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0;
+      background: var(--border-mid); color: var(--text-muted);
+      font-family: var(--font-mono); font-size: 11px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .wk-item.active-item .wk-num { background: var(--accent); color: #0a0a0a; }
+
+    .wk-info { flex: 1; min-width: 0; }
+    .wk-name { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .wk-meta { font-size: 10px; color: var(--text-muted); font-family: var(--font-mono); margin-top: 2px; }
+
+    .wk-order-btns { display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; }
+    .wk-ord-btn {
+      width: 20px; height: 18px; border: none; background: transparent;
+      color: var(--text-dim); cursor: pointer; font-size: 10px; border-radius: 3px;
+      display: flex; align-items: center; justify-content: center; transition: color 0.1s ease;
+    }
+    .wk-ord-btn:hover { color: var(--text); }
+    .wk-ord-btn:disabled { opacity: 0.2; pointer-events: none; }
+
+    .wk-del {
+      width: 24px; height: 24px; border: none; background: transparent;
+      color: var(--text-dim); cursor: pointer; font-size: 12px; border-radius: 4px;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+      transition: all 0.12s ease;
+    }
+    .wk-del:hover { color: var(--danger); background: rgba(255,85,85,0.1); }
+
+    .wk-play-btn {
+      width: 100%; padding: 13px; background: var(--accent); color: #0a0a0a;
+      border: none; border-radius: 9px; font-family: var(--font-jp); font-size: 15px;
+      font-weight: 900; letter-spacing: 0.1em; cursor: pointer;
+      transition: all 0.14s ease; margin-top: 2px;
+    }
+    .wk-play-btn:hover { box-shadow: 0 0 22px var(--accent-glow); }
+    .wk-play-btn:disabled { opacity: 0.4; pointer-events: none; }
+
+    .wk-save-row { display: flex; gap: 8px; align-items: center; }
+    .wk-name-input {
+      flex: 1; background: var(--bg-elevated); border: 1px solid var(--border);
+      color: var(--text); font-family: var(--font-jp); font-size: 14px;
+      padding: 9px 12px; border-radius: 8px; outline: none;
+      transition: border-color 0.15s ease;
+    }
+    .wk-name-input:focus { border-color: var(--accent); }
+    .wk-name-input::placeholder { color: var(--text-dim); }
+
+    .wk-save-action {
+      padding: 9px 14px; border-radius: 8px; cursor: pointer;
+      font-family: var(--font-jp); font-size: 12px; font-weight: 700;
+      transition: all 0.14s ease; white-space: nowrap; flex-shrink: 0;
+    }
+    .wk-save-action.primary {
+      background: var(--accent-dim); border: 1px solid rgba(200,245,122,0.25); color: var(--accent);
+    }
+    .wk-save-action.primary:hover { background: rgba(200,245,122,0.2); }
+    .wk-save-action.secondary {
+      background: var(--bg-elevated); border: 1px solid var(--border); color: var(--text-muted);
+    }
+    .wk-save-action.secondary:hover { border-color: var(--border-mid); color: var(--text); }
+
+    .wk-saved-list { display: flex; flex-direction: column; gap: 5px; }
+    .wk-saved-item {
+      display: flex; align-items: center; gap: 8px; padding: 9px 12px;
+      background: var(--bg-elevated); border: 1px solid var(--border);
+      border-radius: 8px; cursor: pointer; transition: all 0.14s ease;
+    }
+    .wk-saved-item:hover { border-color: var(--border-mid); }
+    .wk-saved-name { flex: 1; font-size: 13px; font-weight: 500; }
+    .wk-saved-meta { font-size: 10px; color: var(--text-muted); font-family: var(--font-mono); }
+    .wk-saved-del {
+      width: 22px; height: 22px; border: none; background: transparent;
+      color: var(--text-dim); cursor: pointer; font-size: 11px; border-radius: 4px;
+      display: flex; align-items: center; justify-content: center; transition: all 0.12s ease;
+    }
+    .wk-saved-del:hover { color: var(--danger); background: rgba(255,85,85,0.1); }
+
+    /* workout progress badge in main ui */
+    .workout-progress {
+      display: none; margin-top: 4px;
+      font-size: 11px; color: var(--text-muted); letter-spacing: 0.1em;
+    }
+    .workout-progress.show { display: block; }
+    .workout-progress span { color: var(--accent); font-weight: 700; }
+
+    /* ─── TRANSITION SCREEN ─── */
+    .transition-screen {
+      position: fixed; inset: 0; z-index: 150;
+      background: rgba(0,0,0,0.92); backdrop-filter: blur(8px);
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+      opacity: 0; pointer-events: none; transition: opacity 0.35s ease;
+    }
+    .transition-screen.show { opacity: 1; pointer-events: all; }
+
+    .tr-done { font-size: 12px; letter-spacing: 0.2em; color: var(--text-muted); text-transform: uppercase; }
+    .tr-done-name { font-size: 20px; font-weight: 700; color: var(--text); }
+    .tr-check { font-size: 36px; margin: 4px 0; }
+    .tr-divider { width: 40px; height: 1px; background: var(--border-mid); margin: 4px 0; }
+    .tr-next-label { font-size: 11px; letter-spacing: 0.2em; color: var(--text-muted); text-transform: uppercase; }
+    .tr-next-name { font-size: 26px; font-weight: 900; color: var(--accent); letter-spacing: 0.04em; }
+    .tr-idx { font-size: 12px; color: var(--text-muted); font-family: var(--font-mono); }
+    .tr-count {
+      font-family: var(--font-mono); font-size: 52px; font-weight: 700;
+      color: var(--text); line-height: 1; margin: 6px 0;
+    }
+    .tr-skip {
+      padding: 10px 28px; border: 1px solid var(--border-mid);
+      background: var(--bg-elevated); color: var(--text-muted);
+      border-radius: 10px; cursor: pointer; font-family: var(--font-jp);
+      font-size: 13px; font-weight: 700; transition: all 0.14s ease;
+    }
+    .tr-skip:hover { border-color: var(--accent); color: var(--accent); }
+  </style>
+</head>
+<body>
+<div id="app">
+  <div class="container">
+
+    <header class="header">
+      <div class="header-brand">
+        <span class="header-title">運動タイマー</span>
+        <span class="header-sub">EXERCISE TIMER</span>
+      </div>
+      <div class="header-btns">
+        <button class="icon-btn" id="ytToggleBtn" title="動画パネル" style="display:none">▶</button>
+        <button class="icon-btn" id="workoutBtn" title="ワークアウトリスト">☰</button>
+        <button class="icon-btn" id="muteBtn" title="ミュート切替">🔊</button>
+        <button class="icon-btn" id="settingsBtn" title="設定">⚙</button>
+      </div>
+    </header>
+
+    <!-- YouTube panel (collapsed by default) -->
+    <div class="yt-panel" id="ytPanel">
+      <div class="yt-bar">
+        <span class="yt-bar-title" id="ytBarTitle"></span>
+        <button class="yt-bar-close" id="ytBarClose" title="動画を閉じる">✕</button>
+      </div>
+      <div class="yt-iframe-wrap">
+        <div id="ytPlayerDiv"></div>
+        <div class="yt-embed-error" id="ytEmbedError">
+          <div class="yt-embed-error-icon">⚠</div>
+          <div class="yt-embed-error-msg" id="ytEmbedErrorMsg">動画を読み込めませんでした</div>
+          <a class="yt-open-link" id="ytOpenLink" href="#" target="_blank" rel="noopener">YouTubeで開く</a>
+        </div>
+      </div>
+    </div>
+
+    <main>
+      <div class="exercise-info">
+        <div class="workout-progress" id="workoutProgress">種目 <span id="wkProgressText">1 / 3</span></div>
+        <div class="exercise-name" id="exName">スクワット</div>
+        <div class="set-row">
+          <span class="set-label" id="setLabel">セット 1 / 3</span>
+          <div class="dot-track" id="dotTrack"></div>
+        </div>
+      </div>
+
+      <div class="ring-wrap">
+        <svg class="ring-svg" viewBox="0 0 300 300">
+          <circle class="ring-bg-glow" id="ringGlow" cx="150" cy="150" r="135"/>
+          <circle class="ring-track" cx="150" cy="150" r="120"/>
+          <circle class="ring-progress" id="ringProg" cx="150" cy="150" r="120"/>
+        </svg>
+        <div class="ring-center">
+          <div class="rep-label" id="repLabel">REPS</div>
+          <div class="rep-num" id="repNum">0</div>
+          <div class="rep-denom" id="repDenom">/ 10</div>
+          <div class="phase-badge" id="phaseBadge"></div>
+        </div>
+      </div>
+
+      <div class="time-row">
+        <span class="t-elapsed" id="tElapsed">0:00</span>
+        <span class="t-sep">/</span>
+        <span class="t-remain" id="tRemain">あと 0:00</span>
+      </div>
+
+      <div class="instr" id="instrText">準備ができたらスタート</div>
+    </main>
+
+    <div class="controls">
+      <button class="btn btn-icon btn-stop" id="stopBtn" title="停止・リセット">⏹</button>
+      <button class="btn btn-play" id="playBtn">▶ スタート</button>
+      <button class="btn btn-icon" id="pauseBtn" title="一時停止">⏸</button>
+    </div>
+
+  </div>
+</div>
+
+<div class="overlay" id="overlay"></div>
+
+<div class="settings-sheet" id="settingsSheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-head">
+    <span class="sheet-title">設定</span>
+    <button class="sheet-close" id="sheetClose">✕</button>
+  </div>
+  <div class="sheet-body">
+
+    <!-- 運動設定 -->
+    <div class="section-head">運動設定</div>
+
+    <div class="field">
+      <div class="field-lbl">運動名</div>
+      <input type="text" class="field-input" id="inName" placeholder="例：スクワット" maxlength="20">
+    </div>
+
+    <div class="fields-2">
+      <div class="field">
+        <div class="field-lbl">目標回数</div>
+        <div class="stepper">
+          <button class="step-btn" data-target="inReps" data-delta="-1">−</button>
+          <input type="number" class="step-input" id="inReps" value="10" min="1" max="100">
+          <button class="step-btn" data-target="inReps" data-delta="1">＋</button>
+        </div>
+      </div>
+      <div class="field">
+        <div class="field-lbl">セット数</div>
+        <div class="stepper">
+          <button class="step-btn" data-target="inSets" data-delta="-1">−</button>
+          <input type="number" class="step-input" id="inSets" value="3" min="1" max="10">
+          <button class="step-btn" data-target="inSets" data-delta="1">＋</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="field">
+      <div class="field-lbl">セット間休憩（秒）</div>
+      <div class="stepper">
+        <button class="step-btn" data-target="inRest" data-delta="-5">−</button>
+        <input type="number" class="step-input" id="inRest" value="30" min="0" max="300">
+        <button class="step-btn" data-target="inRest" data-delta="5">＋</button>
+      </div>
+    </div>
+
+    <!-- フェーズ設定 -->
+    <div class="section-head">フェーズ設定</div>
+
+    <label class="toggle-row">
+      <div>
+        <div class="toggle-label">フェーズ分割</div>
+        <div class="toggle-sub">前半・後半で別々の秒数を設定</div>
+      </div>
+      <div class="toggle-switch">
+        <input type="checkbox" id="inPhaseMode">
+        <span class="toggle-slider"></span>
+      </div>
+    </label>
+
+    <!-- フェーズOFF：単一秒数 -->
+    <div id="singleSecsWrap">
+      <div class="field">
+        <div class="field-lbl">1回あたりの秒数</div>
+        <div class="stepper">
+          <button class="step-btn" data-target="inSecs" data-delta="-1">−</button>
+          <input type="number" class="step-input" id="inSecs" value="3" min="1" max="60">
+          <button class="step-btn" data-target="inSecs" data-delta="1">＋</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- フェーズON：2段階設定 -->
+    <div class="phase-fields" id="phaseFieldsWrap" style="display:none">
+      <div class="phase-row">
+        <div class="field">
+          <div class="field-lbl" style="display:flex;align-items:center;gap:5px">
+            <span class="phase-dot p1"></span>フェーズ1の名前
+          </div>
+          <input type="text" class="field-input" id="inP1Name" placeholder="例：しゃがむ" maxlength="10">
+        </div>
+        <div class="field">
+          <div class="field-lbl">秒数</div>
+          <div class="stepper">
+            <button class="step-btn" data-target="inP1Secs" data-delta="-1">−</button>
+            <input type="number" class="step-input" id="inP1Secs" value="3" min="1" max="30">
+            <button class="step-btn" data-target="inP1Secs" data-delta="1">＋</button>
+          </div>
+        </div>
+      </div>
+      <div class="phase-row">
+        <div class="field">
+          <div class="field-lbl" style="display:flex;align-items:center;gap:5px">
+            <span class="phase-dot p2"></span>フェーズ2の名前
+          </div>
+          <input type="text" class="field-input" id="inP2Name" placeholder="例：たつ" maxlength="10">
+        </div>
+        <div class="field">
+          <div class="field-lbl">秒数</div>
+          <div class="stepper">
+            <button class="step-btn" data-target="inP2Secs" data-delta="-1">−</button>
+            <input type="number" class="step-input" id="inP2Secs" value="2" min="1" max="30">
+            <button class="step-btn" data-target="inP2Secs" data-delta="1">＋</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <button class="apply-btn" id="applyBtn">適用する</button>
+
+    <!-- YouTube連携 -->
+    <div class="section-head">YouTube連携</div>
+
+    <div class="yt-section">
+      <div class="yt-input-row">
+        <input type="url" class="field-input" id="ytUrlInput" placeholder="https://www.youtube.com/watch?v=...">
+        <button class="yt-fetch-btn" id="ytFetchBtn">解析</button>
+      </div>
+      <div class="yt-status" id="ytStatus"></div>
+
+      <div class="yt-result" id="ytResult">
+        <div class="yt-result-title" id="ytResultTitle"></div>
+        <div class="yt-tags" id="ytResultTags"></div>
+        <button class="yt-apply-btn" id="ytApplyBtn">この設定をタイマーに反映</button>
+      </div>
+
+      <button class="yt-manual-btn" id="ytManualToggle">動画の説明文を手動で貼り付ける ▾</button>
+      <div class="yt-manual-area" id="ytManualArea">
+        <textarea class="yt-textarea" id="ytManualText" placeholder="YouTubeの説明文をここに貼り付けてください&#10;例: スクワット 3秒×10回×3セット 休憩30秒"></textarea>
+        <button class="yt-parse-btn" id="ytManualParseBtn">解析する</button>
+      </div>
+    </div>
+
+    <!-- 保存済みメニュー -->
+    <div class="presets-block">
+      <div class="presets-head">
+        <span class="presets-lbl">保存済みメニュー</span>
+        <button class="save-btn" id="savePrBtn">+ 保存</button>
+      </div>
+      <div class="preset-list" id="presetList">
+        <div class="empty-msg">保存されたメニューはありません</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="complete-screen" id="completeScreen">
+  <div class="complete-emoji">🎉</div>
+  <div class="complete-title">完了！</div>
+  <div class="complete-stats" id="completeStats"></div>
+  <button class="complete-close" id="completeClose">閉じる</button>
+</div>
+
+<!-- Workout panel -->
+<div class="workout-sheet" id="workoutSheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-head">
+    <span class="sheet-title">ワークアウトリスト</span>
+    <button class="sheet-close" id="workoutSheetClose">✕</button>
+  </div>
+  <div class="sheet-body">
+
+    <button class="wk-add-btn" id="wkAddBtn">＋ 現在の設定をリストに追加</button>
+
+    <div class="section-head">リスト編集</div>
+    <div class="wk-list" id="wkList">
+      <div class="empty-msg">運動がありません。上のボタンで追加してください</div>
+    </div>
+
+    <button class="wk-play-btn" id="wkPlayBtn" disabled>▶ ワークアウト開始</button>
+
+    <!-- 保存・読み込み -->
+    <div class="section-head">保存・読み込み</div>
+    <div class="wk-save-row">
+      <input type="text" class="wk-name-input" id="wkSaveName" placeholder="ワークアウト名を入力">
+      <button class="wk-save-action primary" id="wkSaveBtn">保存</button>
+    </div>
+    <div class="field" style="margin-top:-4px">
+      <div class="field-lbl">YouTube URL（任意・ロード時に自動再生）</div>
+      <input type="url" class="field-input" id="wkYtUrl" placeholder="https://www.youtube.com/watch?v=...">
+    </div>
+    <div class="wk-saved-list" id="wkSavedList">
+      <div class="empty-msg">保存済みワークアウトはありません</div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Transition screen (between exercises in workout) -->
+<div class="transition-screen" id="transitionScreen">
+  <div class="tr-done" id="trDoneLabel">完了</div>
+  <div class="tr-done-name" id="trDoneName"></div>
+  <div class="tr-check">✓</div>
+  <div class="tr-divider"></div>
+  <div class="tr-next-label">次の運動</div>
+  <div class="tr-next-name" id="trNextName"></div>
+  <div class="tr-idx" id="trIdx"></div>
+  <div class="tr-count" id="trCount">3</div>
+  <button class="tr-skip" id="trSkip">今すぐ開始</button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ═══════════════════════════════════════════
+   STATE
+═══════════════════════════════════════════ */
+const S = {
+  status: 'idle',  // idle | running | paused | resting | complete
+  set: 1,
+  rep: 0,
+  phase: 1,        // 1 or 2 (when phaseMode)
+  timeLeft: 0,
+  phaseTotal: 0,
+  rafId: null,
+  lastTs: null,
+  muted: false,
+  ytParsed: null,
+  // Workout list mode
+  workoutMode: false,
+  workoutList: [],  // array of cfg objects
+  workoutIdx: 0,    // current index in workoutList
+  trTimerId: null,  // transition countdown timer ID
+  cfg: {
+    name: 'スクワット',
+    secs: 3,
+    reps: 10,
+    sets: 3,
+    rest: 30,
+    phaseMode: false,
+    p1Name: 'しゃがむ',
+    p1Secs: 3,
+    p2Name: 'たつ',
+    p2Secs: 2
+  }
+};
+
+/* ═══════════════════════════════════════════
+   AUDIO
+═══════════════════════════════════════════ */
+let actx = null;
+
+function getCtx() {
+  if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+  if (actx.state === 'suspended') actx.resume();
+  return actx;
+}
+
+function beep(freq, dur, vol = 0.28, shape = 'sine') {
+  if (S.muted) return;
+  try {
+    const c = getCtx();
+    const o = c.createOscillator(); const g = c.createGain();
+    o.connect(g); g.connect(c.destination);
+    o.type = shape; o.frequency.value = freq;
+    g.gain.setValueAtTime(vol, c.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + dur);
+    o.start(c.currentTime); o.stop(c.currentTime + dur);
+  } catch(e) {}
+}
+
+function sndPhase()    { beep(660, 0.08, 0.15); }
+function sndCount()    { beep(880, 0.1); }
+function sndSetEnd()   { beep(660, 0.18); setTimeout(() => beep(880, 0.25), 160); }
+function sndDone()     { [523,659,784,1047].forEach((f,i) => setTimeout(() => beep(f,0.3,0.3), i*110)); }
+function sndTick()     { beep(1100, 0.03, 0.1);  }   // 通常カウント
+function sndTickLast() { beep(1400, 0.05, 0.22); }   // 残り3秒以内
+
+/* ═══════════════════════════════════════════
+   STORAGE
+═══════════════════════════════════════════ */
+const LS_CFG = 'exTimer_cfg2';
+const LS_PR  = 'exTimer_presets2';
+
+function saveCfg()    { try { localStorage.setItem(LS_CFG, JSON.stringify(S.cfg)); } catch(e) {} }
+function loadCfg()    { try { const d = localStorage.getItem(LS_CFG); if (d) S.cfg = {...S.cfg, ...JSON.parse(d)}; } catch(e) {} }
+function getPresets() { try { return JSON.parse(localStorage.getItem(LS_PR) || '[]'); } catch(e) { return []; } }
+function setPresets(p){ try { localStorage.setItem(LS_PR, JSON.stringify(p)); } catch(e) {} }
+
+/* ═══════════════════════════════════════════
+   HELPERS
+═══════════════════════════════════════════ */
+const CIRC = 2 * Math.PI * 120;
+
+function fmt(s) {
+  const t = Math.max(0, Math.ceil(s));
+  return `${Math.floor(t/60)}:${String(t%60).padStart(2,'0')}`;
+}
+
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('show'), 2200);
+}
+
+function setRingOffset(prog) {
+  document.getElementById('ringProg').style.strokeDashoffset = CIRC * (1 - Math.min(1, Math.max(0, prog)));
+}
+
+function phaseSecs() {
+  if (!S.cfg.phaseMode) return S.cfg.secs;
+  return S.phase === 1 ? S.cfg.p1Secs : S.cfg.p2Secs;
+}
+
+/* ═══════════════════════════════════════════
+   RENDER
+═══════════════════════════════════════════ */
+function render() {
+  const c = S.cfg;
+
+  document.getElementById('exName').textContent = c.name;
+  document.getElementById('setLabel').textContent = `セット ${S.set} / ${c.sets}`;
+
+  // workout progress badge
+  const wpEl = document.getElementById('workoutProgress');
+  if (S.workoutMode && S.workoutList.length > 1) {
+    document.getElementById('wkProgressText').textContent = `${S.workoutIdx + 1} / ${S.workoutList.length}`;
+    wpEl.classList.add('show');
+  } else {
+    wpEl.classList.remove('show');
+  }
+
+  // dot track
+  const dt = document.getElementById('dotTrack'); dt.innerHTML = '';
+  for (let i = 1; i <= c.sets; i++) {
+    const d = document.createElement('div');
+    d.className = 'dot' + (i < S.set ? ' done' : '') +
+      (i === S.set && S.status !== 'idle' ? ' current' : '');
+    dt.appendChild(d);
+  }
+
+  const prog = S.phaseTotal > 0 ? (S.phaseTotal - S.timeLeft) / S.phaseTotal : 0;
+  const rp = document.getElementById('ringProg');
+  const rg = document.getElementById('ringGlow');
+  const rn = document.getElementById('repNum');
+  const rl = document.getElementById('repLabel');
+  const rd = document.getElementById('repDenom');
+  const pb = document.getElementById('phaseBadge');
+
+  // reset ring classes
+  rp.classList.remove('phase2', 'rest', 'flash');
+
+  if (S.status === 'resting') {
+    setRingOffset(prog);
+    rp.classList.add('rest'); rg.classList.add('on');
+    rl.textContent = 'REST';
+    rn.textContent = Math.ceil(S.timeLeft); rn.className = 'rep-num rest-color';
+    rd.textContent = `セット${S.set-1}完了`;
+    pb.className = 'phase-badge'; // hidden
+
+  } else if (S.status === 'idle') {
+    setRingOffset(0); rg.classList.remove('on');
+    rl.textContent = 'REPS';
+    rn.textContent = '0'; rn.className = 'rep-num';
+    rd.textContent = `/ ${c.reps}`;
+    pb.className = 'phase-badge';
+
+  } else if (S.status === 'complete') {
+    setRingOffset(1); rg.classList.add('on');
+    rl.textContent = 'DONE';
+    rn.textContent = c.reps; rn.className = 'rep-num';
+    rd.textContent = `× ${c.sets}`;
+    pb.className = 'phase-badge';
+
+  } else {
+    // running or paused
+    setRingOffset(prog); rg.classList.add('on');
+    rl.textContent = 'REPS';
+    rn.textContent = S.rep; rn.className = 'rep-num';
+    rd.textContent = `/ ${c.reps}`;
+
+    if (c.phaseMode && S.status === 'running') {
+      if (S.phase === 2) {
+        rp.classList.add('phase2');
+        pb.textContent = S.cfg.p2Name;
+        pb.className = 'phase-badge show p2';
+      } else {
+        pb.textContent = S.cfg.p1Name;
+        pb.className = 'phase-badge show p1';
+      }
+    } else {
+      pb.className = 'phase-badge';
+    }
+  }
+
+  // time row
+  const elapsed = S.phaseTotal - S.timeLeft;
+  document.getElementById('tElapsed').textContent = S.status === 'idle' ? '0:00' : fmt(elapsed);
+  if (S.status === 'idle') {
+    if (c.phaseMode) {
+      document.getElementById('tRemain').textContent = `${fmt(c.p1Secs)}＋${fmt(c.p2Secs)} / 回`;
+    } else {
+      document.getElementById('tRemain').textContent = `${fmt(c.secs)} / 回`;
+    }
+  } else {
+    document.getElementById('tRemain').textContent = `あと ${fmt(S.timeLeft)}`;
+  }
+
+  // instruction
+  const ins = document.getElementById('instrText');
+  ins.className = 'instr';
+  if (S.status === 'idle') {
+    ins.textContent = '準備ができたらスタート';
+  } else if (S.status === 'running') {
+    if (c.phaseMode) {
+      const name = S.phase === 1 ? c.p1Name : c.p2Name;
+      ins.textContent = name;
+      ins.classList.add(S.phase === 1 ? 'active-instr' : 'p2-instr');
+    } else {
+      ins.classList.add('active-instr');
+      const r = S.timeLeft / S.phaseTotal;
+      ins.textContent = r > 0.6 ? '運動してください！' : r > 0.25 ? 'がんばれ！' : 'あと少し！';
+    }
+  } else if (S.status === 'paused') {
+    ins.textContent = '一時停止中';
+  } else if (S.status === 'resting') {
+    ins.classList.add('rest-instr');
+    ins.textContent = `セット ${S.set-1} 完了！休憩してください`;
+  } else if (S.status === 'complete') {
+    ins.classList.add('active-instr');
+    ins.textContent = '全セット完了！お疲れ様でした！';
+  }
+
+  // play button
+  const playBtn = document.getElementById('playBtn');
+  if (S.status === 'running') {
+    playBtn.textContent = '▶ 運動中'; playBtn.disabled = true;
+  } else if (S.status === 'paused') {
+    playBtn.textContent = '▶ 再開'; playBtn.disabled = false;
+  } else if (S.status === 'resting') {
+    playBtn.textContent = '▶ スキップ'; playBtn.disabled = false;
+  } else {
+    playBtn.textContent = '▶ スタート'; playBtn.disabled = false;
+  }
+}
+
+/* ═══════════════════════════════════════════
+   TIMER ENGINE
+═══════════════════════════════════════════ */
+function startRep() {
+  S.status = 'running';
+  S.phase = 1;
+  S.phaseTotal = phaseSecs();
+  S.timeLeft = S.phaseTotal;
+  S.lastTs = null;
+  tick(); render();
+}
+
+function startRest() {
+  if (!S.cfg.rest) { nextSet(); return; }
+  S.status = 'resting';
+  S.phaseTotal = S.cfg.rest;
+  S.timeLeft = S.cfg.rest;
+  S.lastTs = null;
+  sndSetEnd(); tick(); render();
+}
+
+function nextSet() {
+  if (S.set >= S.cfg.sets) { finishAll(); return; }
+  S.set++; S.rep = 0; startRep();
+}
+
+function finishAll() {
+  if (S.rafId) { cancelAnimationFrame(S.rafId); S.rafId = null; }
+
+  // Workout mode: check if there are more exercises
+  if (S.workoutMode && S.workoutIdx < S.workoutList.length - 1) {
+    sndSetEnd();
+    showWorkoutTransition();
+    return;
+  }
+
+  // All done
+  S.status = 'complete'; render();
+  sndDone();
+  const sets = S.workoutMode ? S.workoutList.length + '種目' : `${S.cfg.reps}回 × ${S.cfg.sets}セット`;
+  const stats = S.workoutMode
+    ? `${S.workoutList.length}種目のワークアウト完了！\nお疲れ様でした！`
+    : `${S.cfg.name}\n${S.cfg.reps}回 × ${S.cfg.sets}セット\n合計 ${S.cfg.reps * S.cfg.sets} 回完了！`;
+  document.getElementById('completeStats').textContent = stats;
+  document.getElementById('completeScreen').classList.add('show');
+}
+
+function tick() {
+  const frame = (ts) => {
+    if (S.status !== 'running' && S.status !== 'resting') return;
+    if (!S.lastTs) S.lastTs = ts;
+    const dt = (ts - S.lastTs) / 1000;
+    S.lastTs = ts;
+    const prevLeft = S.timeLeft;
+    S.timeLeft = Math.max(0, S.timeLeft - dt);
+
+    // Tick sound at each 1-second boundary (skip when timeLeft hits 0 — completion beep handles that)
+    if (S.timeLeft > 0) {
+      const prevSec = Math.ceil(prevLeft);
+      const currSec = Math.ceil(S.timeLeft);
+      if (currSec < prevSec) {
+        S.status === 'resting' ? sndTick() : (currSec <= 3 ? sndTickLast() : sndTick());
+      }
+    }
+
+    if (S.timeLeft <= 0) {
+      if (S.status === 'running') {
+        if (S.cfg.phaseMode && S.phase === 1) {
+          // phase 1 → phase 2
+          S.phase = 2;
+          S.phaseTotal = S.cfg.p2Secs;
+          S.timeLeft = S.cfg.p2Secs;
+          sndPhase(); render();
+          S.rafId = requestAnimationFrame(frame); return;
+        } else {
+          // rep complete
+          S.phase = 1;
+          S.rep++;
+          sndCount();
+          const rn = document.getElementById('repNum');
+          rn.classList.remove('pulse'); void rn.offsetWidth; rn.classList.add('pulse');
+          const rp = document.getElementById('ringProg');
+          rp.classList.remove('flash'); void rp.offsetWidth; rp.classList.add('flash');
+
+          if (S.rep >= S.cfg.reps) {
+            render();
+            if (S.set >= S.cfg.sets) { finishAll(); return; }
+            startRest(); return;
+          } else {
+            S.phaseTotal = phaseSecs();
+            S.timeLeft = S.phaseTotal;
+          }
+        }
+      } else if (S.status === 'resting') {
+        nextSet(); return;
+      }
+    }
+
+    render();
+    S.rafId = requestAnimationFrame(frame);
+  };
+  S.rafId = requestAnimationFrame(frame);
+}
+
+function doPlay() {
+  getCtx();
+  if (S.status === 'resting') { nextSet(); return; }
+  if (S.status === 'paused') {
+    S.status = 'running'; S.lastTs = null; tick(); render(); return;
+  }
+  if (S.status === 'running') return;
+  S.set = 1; S.rep = 0; startRep();
+}
+
+function doPause() {
+  if (S.status !== 'running' && S.status !== 'resting') return;
+  S.status = 'paused';
+  if (S.rafId) { cancelAnimationFrame(S.rafId); S.rafId = null; }
+  render();
+}
+
+function doStop() {
+  S.status = 'idle'; S.set = 1; S.rep = 0; S.phase = 1; S.timeLeft = 0; S.phaseTotal = 0;
+  if (S.rafId) { cancelAnimationFrame(S.rafId); S.rafId = null; }
+  clearTransition();
+  S.workoutMode = false; S.workoutIdx = 0;
+  render();
+}
+
+/* ═══════════════════════════════════════════
+   SETTINGS
+═══════════════════════════════════════════ */
+function openSettings() {
+  const c = S.cfg;
+  document.getElementById('inName').value = c.name;
+  document.getElementById('inSecs').value = c.secs;
+  document.getElementById('inReps').value = c.reps;
+  document.getElementById('inSets').value = c.sets;
+  document.getElementById('inRest').value = c.rest;
+  document.getElementById('inPhaseMode').checked = c.phaseMode;
+  document.getElementById('inP1Name').value = c.p1Name;
+  document.getElementById('inP1Secs').value = c.p1Secs;
+  document.getElementById('inP2Name').value = c.p2Name;
+  document.getElementById('inP2Secs').value = c.p2Secs;
+  togglePhaseUI(c.phaseMode);
+  renderPresets();
+  document.getElementById('settingsSheet').classList.add('open');
+  document.getElementById('overlay').classList.add('open');
+}
+
+function closeSettings() {
+  document.getElementById('settingsSheet').classList.remove('open');
+  document.getElementById('overlay').classList.remove('open');
+}
+
+function togglePhaseUI(on) {
+  document.getElementById('singleSecsWrap').style.display = on ? 'none' : 'block';
+  document.getElementById('phaseFieldsWrap').style.display = on ? 'flex' : 'none';
+}
+
+function applySettings() {
+  S.cfg = {
+    name: document.getElementById('inName').value.trim() || 'スクワット',
+    secs: Math.max(1, +document.getElementById('inSecs').value || 3),
+    reps: Math.max(1, +document.getElementById('inReps').value || 10),
+    sets: Math.max(1, +document.getElementById('inSets').value || 3),
+    rest: Math.max(0, +document.getElementById('inRest').value || 30),
+    phaseMode: document.getElementById('inPhaseMode').checked,
+    p1Name: document.getElementById('inP1Name').value.trim() || 'しゃがむ',
+    p1Secs: Math.max(1, +document.getElementById('inP1Secs').value || 3),
+    p2Name: document.getElementById('inP2Name').value.trim() || 'たつ',
+    p2Secs: Math.max(1, +document.getElementById('inP2Secs').value || 2)
+  };
+  saveCfg();
+  if (S.status !== 'idle') doStop();
+  render(); closeSettings();
+  toast('設定を適用しました');
+}
+
+/* ═══════════════════════════════════════════
+   PRESETS
+═══════════════════════════════════════════ */
+function readSettingsForm() {
+  return {
+    name: document.getElementById('inName').value.trim() || 'スクワット',
+    secs: Math.max(1, +document.getElementById('inSecs').value || 3),
+    reps: Math.max(1, +document.getElementById('inReps').value || 10),
+    sets: Math.max(1, +document.getElementById('inSets').value || 3),
+    rest: Math.max(0, +document.getElementById('inRest').value || 30),
+    phaseMode: document.getElementById('inPhaseMode').checked,
+    p1Name: document.getElementById('inP1Name').value.trim() || 'しゃがむ',
+    p1Secs: Math.max(1, +document.getElementById('inP1Secs').value || 3),
+    p2Name: document.getElementById('inP2Name').value.trim() || 'たつ',
+    p2Secs: Math.max(1, +document.getElementById('inP2Secs').value || 2)
+  };
+}
+
+function fillSettingsForm(q) {
+  if (q.name  !== undefined) document.getElementById('inName').value = q.name;
+  if (q.secs  !== undefined) document.getElementById('inSecs').value = q.secs;
+  if (q.reps  !== undefined) document.getElementById('inReps').value = q.reps;
+  if (q.sets  !== undefined) document.getElementById('inSets').value = q.sets;
+  if (q.rest  !== undefined) document.getElementById('inRest').value = q.rest;
+  if (q.phaseMode !== undefined) {
+    document.getElementById('inPhaseMode').checked = q.phaseMode;
+    togglePhaseUI(q.phaseMode);
+  }
+  if (q.p1Name !== undefined) document.getElementById('inP1Name').value = q.p1Name;
+  if (q.p1Secs !== undefined) document.getElementById('inP1Secs').value = q.p1Secs;
+  if (q.p2Name !== undefined) document.getElementById('inP2Name').value = q.p2Name;
+  if (q.p2Secs !== undefined) document.getElementById('inP2Secs').value = q.p2Secs;
+}
+
+function renderPresets() {
+  const prs = getPresets();
+  const el = document.getElementById('presetList');
+  if (!prs.length) { el.innerHTML = '<div class="empty-msg">保存されたメニューはありません</div>'; return; }
+  el.innerHTML = '';
+  prs.forEach((p, i) => {
+    const item = document.createElement('div');
+    item.className = 'preset-item';
+    const secsText = p.phaseMode ? `${p.p1Secs}+${p.p2Secs}s` : `${p.secs}s`;
+    item.innerHTML =
+      `<span class="preset-name">${p.name}</span>` +
+      `<span class="preset-meta">${p.reps}回×${p.sets}set/${secsText}</span>` +
+      `<button class="preset-del" data-i="${i}">✕</button>`;
+    item.addEventListener('click', (e) => {
+      if (e.target.classList.contains('preset-del')) return;
+      fillSettingsForm(prs[i]);
+      toast(`「${prs[i].name}」を読み込みました`);
+    });
+    item.querySelector('.preset-del').addEventListener('click', () => {
+      const arr = getPresets(); arr.splice(i, 1); setPresets(arr); renderPresets();
+    });
+    el.appendChild(item);
+  });
+}
+
+function savePreset() {
+  const p = readSettingsForm();
+  const arr = getPresets(); arr.push(p); setPresets(arr);
+  renderPresets();
+  toast(`「${p.name}」を保存しました`);
+}
+
+/* ═══════════════════════════════════════════
+   WORKOUT LIST
+═══════════════════════════════════════════ */
+const LS_WK = 'exTimer_workoutLists';
+
+function getWorkoutLists() { try { return JSON.parse(localStorage.getItem(LS_WK) || '[]'); } catch(e) { return []; } }
+function setWorkoutLists(a){ try { localStorage.setItem(LS_WK, JSON.stringify(a)); } catch(e) {} }
+
+function cfgMeta(c) {
+  const secsText = c.phaseMode ? `${c.p1Secs}+${c.p2Secs}s` : `${c.secs}s`;
+  return `${c.reps}回 × ${c.sets}set / ${secsText}`;
+}
+
+function renderWorkoutList() {
+  const el = document.getElementById('wkList');
+  const playBtn = document.getElementById('wkPlayBtn');
+  if (!S.workoutList.length) {
+    el.innerHTML = '<div class="empty-msg">運動がありません。上のボタンで追加してください</div>';
+    playBtn.disabled = true; return;
+  }
+  playBtn.disabled = false;
+  el.innerHTML = '';
+  S.workoutList.forEach((c, i) => {
+    const item = document.createElement('div');
+    item.className = 'wk-item' + (S.workoutMode && i === S.workoutIdx ? ' active-item' : '');
+    item.innerHTML =
+      `<div class="wk-num">${i + 1}</div>` +
+      `<div class="wk-info"><div class="wk-name">${c.name}</div><div class="wk-meta">${cfgMeta(c)}</div></div>` +
+      `<div class="wk-order-btns">` +
+        `<button class="wk-ord-btn" data-i="${i}" data-dir="-1" ${i === 0 ? 'disabled' : ''}>▲</button>` +
+        `<button class="wk-ord-btn" data-i="${i}" data-dir="1" ${i === S.workoutList.length-1 ? 'disabled' : ''}>▼</button>` +
+      `</div>` +
+      `<button class="wk-del" data-i="${i}">✕</button>`;
+    el.appendChild(item);
+  });
+
+  el.querySelectorAll('.wk-ord-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const i = +btn.dataset.i, dir = +btn.dataset.dir;
+      const j = i + dir;
+      if (j < 0 || j >= S.workoutList.length) return;
+      [S.workoutList[i], S.workoutList[j]] = [S.workoutList[j], S.workoutList[i]];
+      renderWorkoutList();
+    });
+  });
+  el.querySelectorAll('.wk-del').forEach(btn => {
+    btn.addEventListener('click', () => {
+      S.workoutList.splice(+btn.dataset.i, 1);
+      renderWorkoutList();
+    });
+  });
+}
+
+function renderSavedWorkouts() {
+  const lists = getWorkoutLists();
+  const el = document.getElementById('wkSavedList');
+  if (!lists.length) { el.innerHTML = '<div class="empty-msg">保存済みワークアウトはありません</div>'; return; }
+  el.innerHTML = '';
+  lists.forEach((wl, i) => {
+    const item = document.createElement('div');
+    item.className = 'wk-saved-item';
+    const ytBadge = wl.youtubeId ? `<span style="font-size:10px;color:var(--rest-color);margin-left:4px">▶YT</span>` : '';
+    item.innerHTML =
+      `<span class="wk-saved-name">${wl.name}${ytBadge}</span>` +
+      `<span class="wk-saved-meta">${wl.list.length}種目</span>` +
+      `<button class="wk-saved-del" data-i="${i}">✕</button>`;
+    item.addEventListener('click', (e) => {
+      if (e.target.classList.contains('wk-saved-del')) return;
+      S.workoutList = wl.list.map(c => ({...c}));
+      renderWorkoutList();
+      // Restore YouTube video if associated
+      if (wl.youtubeId) {
+        setYouTubeVideo(wl.youtubeId, wl.youtubeTitle || wl.name);
+        toast(`「${wl.name}」を読み込み・動画を表示しました`);
+      } else {
+        toast(`「${wl.name}」を読み込みました`);
+      }
+    });
+    item.querySelector('.wk-saved-del').addEventListener('click', () => {
+      const arr = getWorkoutLists(); arr.splice(i, 1); setWorkoutLists(arr);
+      renderSavedWorkouts();
+    });
+    el.appendChild(item);
+  });
+}
+
+function openWorkoutPanel() {
+  renderWorkoutList();
+  renderSavedWorkouts();
+  document.getElementById('workoutSheet').classList.add('open');
+  document.getElementById('overlay').classList.add('open');
+  document.getElementById('overlay')._target = 'workout';
+}
+
+function closeWorkoutPanel() {
+  document.getElementById('workoutSheet').classList.remove('open');
+  document.getElementById('overlay').classList.remove('open');
+}
+
+function startWorkout() {
+  if (!S.workoutList.length) return;
+  S.workoutMode = true;
+  S.workoutIdx = 0;
+  S.cfg = {...S.workoutList[0]};
+  saveCfg();
+  closeWorkoutPanel();
+  S.set = 1; S.rep = 0; S.phase = 1;
+  getCtx();
+  startRep();
+}
+
+/* Transition countdown between workout exercises */
+function showWorkoutTransition() {
+  const nextIdx = S.workoutIdx + 1;
+  const next = S.workoutList[nextIdx];
+  const done = S.workoutList[S.workoutIdx];
+
+  document.getElementById('trDoneName').textContent = done.name;
+  document.getElementById('trNextName').textContent = next.name;
+  document.getElementById('trIdx').textContent = `${nextIdx + 1} / ${S.workoutList.length} 種目`;
+
+  let left = 3;
+  document.getElementById('trCount').textContent = left;
+  document.getElementById('transitionScreen').classList.add('show');
+
+  function tick() {
+    left -= 0.1;
+    document.getElementById('trCount').textContent = Math.max(0, Math.ceil(left));
+    if (left <= 0) { doNextWorkoutExercise(); return; }
+    S.trTimerId = setTimeout(tick, 100);
+  }
+  S.trTimerId = setTimeout(tick, 100);
+}
+
+function doNextWorkoutExercise() {
+  clearTransition();
+  S.workoutIdx++;
+  S.cfg = {...S.workoutList[S.workoutIdx]};
+  S.set = 1; S.rep = 0; S.phase = 1;
+  startRep();
+}
+
+function clearTransition() {
+  if (S.trTimerId) { clearTimeout(S.trTimerId); S.trTimerId = null; }
+  document.getElementById('transitionScreen').classList.remove('show');
+}
+
+/* ═══════════════════════════════════════════
+   YOUTUBE INTEGRATION
+═══════════════════════════════════════════ */
+function extractVideoId(url) {
+  const m = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+  return m ? m[1] : null;
+}
+
+// Exercise name dictionary for Japanese text detection
+const EXERCISE_KEYWORDS = [
+  'スクワット','腕立て伏せ','腕立','プランク','バーピー','バーピーバンプ',
+  'ランジ','腹筋','クランチ','マウンテンクライマー','ジャンピングジャック',
+  'ヒップリフト','ヒップヒンジ','デッドリフト','グルートブリッジ',
+  'レッグレイズ','ダンベル','ケトルベル','プッシュアップ','スクワットジャンプ',
+  'ニートゥエルボー','サイドプランク','ロシアンツイスト','バイシクルクランチ',
+  'ブルガリアンスクワット','インクラインプッシュアップ',
+  'squat','push up','pushup','plank','lunge','crunch','burpee'
+];
+
+function parseExerciseText(text) {
+  if (!text) return {};
+  const result = {};
+
+  // Exercise name
+  for (const kw of EXERCISE_KEYWORDS) {
+    if (text.toLowerCase().includes(kw.toLowerCase())) {
+      result.name = kw; break;
+    }
+  }
+
+  // Seconds: 数字秒, 数字 秒, 数字sec
+  const secsM = text.match(/(\d{1,3})\s*秒/) || text.match(/(\d{1,3})\s*sec/i);
+  if (secsM) result.secs = Math.min(60, parseInt(secsM[1]));
+
+  // Reps: 数字回
+  const repsM = text.match(/(\d{1,3})\s*回/);
+  if (repsM) result.reps = Math.min(100, parseInt(repsM[1]));
+
+  // Sets: 数字セット, 数字set
+  const setsM = text.match(/(\d{1,2})\s*セット/) || text.match(/(\d{1,2})\s*set/i);
+  if (setsM) result.sets = Math.min(10, parseInt(setsM[1]));
+
+  // Rest: 休憩数字秒
+  const restM = text.match(/休憩\s*(\d{1,3})\s*秒/);
+  if (restM) result.rest = Math.min(300, parseInt(restM[1]));
+
+  return result;
+}
+
+function showYtResult(data, title) {
+  const tags = [];
+  if (data.name) tags.push(`運動: ${data.name}`);
+  if (data.secs) tags.push(`${data.secs}秒/回`);
+  if (data.reps) tags.push(`${data.reps}回`);
+  if (data.sets) tags.push(`${data.sets}セット`);
+  if (data.rest) tags.push(`休憩${data.rest}秒`);
+
+  if (!tags.length) return false;
+
+  S.ytParsed = data;
+  document.getElementById('ytResultTitle').textContent = title || '解析結果';
+  const tagsEl = document.getElementById('ytResultTags');
+  tagsEl.innerHTML = '';
+  tags.forEach(t => {
+    const span = document.createElement('span');
+    span.className = 'yt-tag'; span.textContent = t;
+    tagsEl.appendChild(span);
+  });
+  document.getElementById('ytResult').classList.add('show');
+  return true;
+}
+
+async function fetchYouTubeInfo() {
+  const url = document.getElementById('ytUrlInput').value.trim();
+  if (!url) { setYtStatus('URLを入力してください', 'err'); return; }
+
+  const videoId = extractVideoId(url);
+  if (!videoId) { setYtStatus('有効なYouTube URLを入力してください', 'err'); return; }
+
+  const btn = document.getElementById('ytFetchBtn');
+  btn.classList.add('loading'); btn.textContent = '解析中…';
+  setYtStatus('動画情報を取得中…', '');
+  document.getElementById('ytResult').classList.remove('show');
+
+  let title = '', description = '';
+
+  // Step 1: noembed for title
+  try {
+    const r = await fetch(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${videoId}`);
+    const d = await r.json();
+    title = d.title || '';
+  } catch(e) {}
+
+  // Step 2: allorigins proxy for description
+  try {
+    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent('https://www.youtube.com/watch?v=' + videoId)}`;
+    const r = await fetch(proxyUrl);
+    const d = await r.json();
+    const html = d.contents || '';
+
+    // Try og:description or meta description
+    const metaM = html.match(/<meta[^>]+name="description"[^>]+content="([^"]{1,800})"/i)
+                || html.match(/<meta[^>]+content="([^"]{1,800})"[^>]+name="description"/i);
+    if (metaM) description = metaM[1];
+
+    // Fallback: shortDescription in JSON blob
+    if (!description) {
+      const sdM = html.match(/"shortDescription":\s*"((?:[^"\\]|\\.)*)"/);
+      if (sdM) {
+        try { description = JSON.parse(`"${sdM[1]}"`); } catch(e) { description = sdM[1]; }
+      }
+    }
+  } catch(e) {}
+
+  btn.classList.remove('loading'); btn.textContent = '解析';
+
+  // Use title if no description
+  const textToAnalyze = description || title;
+  const parsed = parseExerciseText(textToAnalyze);
+
+  // Override name with title-based detection if description had no name
+  if (!parsed.name && title) {
+    for (const kw of EXERCISE_KEYWORDS) {
+      if (title.toLowerCase().includes(kw.toLowerCase())) { parsed.name = kw; break; }
+    }
+  }
+
+  if (!Object.keys(parsed).length && !title) {
+    setYtStatus('情報を取得できませんでした。説明文を手動で貼り付けてください', 'err');
+    return;
+  }
+
+  // Set video ID for embedding
+  setYouTubeVideo(videoId, title);
+
+  if (showYtResult(parsed, title)) {
+    setYtStatus('解析完了！設定を確認してください', 'ok');
+  } else {
+    setYtStatus(`「${title || videoId}」を読み込みました（設定は手動で入力してください）`, 'ok');
+  }
+}
+
+function setYtStatus(msg, type) {
+  const el = document.getElementById('ytStatus');
+  el.textContent = msg;
+  el.className = 'yt-status' + (type ? ' ' + type : '');
+}
+
+function applyYouTubeData() {
+  if (!S.ytParsed) return;
+  fillSettingsForm(S.ytParsed);
+  document.getElementById('ytResult').classList.remove('show');
+  setYtStatus('設定フォームに反映しました。「適用する」で確定してください', 'ok');
+  toast('YouTube設定を反映しました');
+}
+
+/* ─── YouTube IFrame Player API ─── */
+let ytPlayer    = null;
+let ytCurrentId = null;
+let ytApiReady  = false;
+let ytPendingId = null;
+
+window.onYouTubeIframeAPIReady = function() {
+  ytApiReady = true;
+  if (ytPendingId) { initYTPlayer(ytPendingId); ytPendingId = null; }
+};
+
+function loadYTApi() {
+  if (document.getElementById('yt-api-script')) return;
+  const tag = document.createElement('script');
+  tag.id = 'yt-api-script';
+  tag.src = 'https://www.youtube.com/iframe_api';
+  document.head.appendChild(tag);
+}
+
+function initYTPlayer(videoId) {
+  ytCurrentId = videoId;
+  document.getElementById('ytEmbedError').style.display = 'none';
+
+  if (ytPlayer) {
+    try { ytPlayer.loadVideoById(videoId); } catch(e) { ytPlayer = null; initYTPlayer(videoId); }
+    return;
+  }
+
+  ytPlayer = new YT.Player('ytPlayerDiv', {
+    height: '100%', width: '100%',
+    videoId: videoId,
+    playerVars: { rel: 0, modestbranding: 1, playsinline: 1 },
+    events: {
+      onError: function(e) { handleYTPlayerError(e.data); }
+    }
+  });
+}
+
+function handleYTPlayerError(code) {
+  const msgs = {
+    2:   '動画IDが無効です。URLを確認してください。',
+    5:   'HTML5プレーヤーでの再生に失敗しました。',
+    100: '動画が見つかりません（削除または非公開）。',
+    101: 'この動画は埋め込み再生が無効に設定されています。',
+    150: 'この動画は埋め込み再生が無効に設定されています。',
+    153: 'この動画は埋め込み再生が無効に設定されています（エラー 153）。'
+  };
+  const msg = msgs[code] || `動画を読み込めませんでした（エラー ${code}）。`;
+  document.getElementById('ytEmbedErrorMsg').textContent = msg;
+  if (ytCurrentId) {
+    document.getElementById('ytOpenLink').href = `https://www.youtube.com/watch?v=${ytCurrentId}`;
+  }
+  document.getElementById('ytEmbedError').style.display = 'flex';
+}
+
+function setYouTubeVideo(videoId, title) {
+  if (!videoId) return;
+  document.getElementById('ytBarTitle').textContent = title || videoId;
+  document.getElementById('ytToggleBtn').style.display = 'flex';
+  document.getElementById('ytPanel').classList.add('open');
+
+  if (typeof YT !== 'undefined' && YT.Player) {
+    initYTPlayer(videoId);
+  } else {
+    ytPendingId = videoId;
+    loadYTApi();
+  }
+}
+
+function closeYtPanel() {
+  document.getElementById('ytPanel').classList.remove('open');
+  if (ytPlayer && typeof ytPlayer.pauseVideo === 'function') {
+    try { ytPlayer.pauseVideo(); } catch(e) {}
+  }
+}
+
+/* ═══════════════════════════════════════════
+   EVENTS
+═══════════════════════════════════════════ */
+document.getElementById('playBtn').addEventListener('click', doPlay);
+document.getElementById('pauseBtn').addEventListener('click', () => {
+  if (S.status === 'paused') doPlay(); else doPause();
+});
+document.getElementById('stopBtn').addEventListener('click', doStop);
+
+document.getElementById('settingsBtn').addEventListener('click', openSettings);
+document.getElementById('sheetClose').addEventListener('click', closeSettings);
+
+// Workout panel
+document.getElementById('workoutBtn').addEventListener('click', openWorkoutPanel);
+document.getElementById('workoutSheetClose').addEventListener('click', closeWorkoutPanel);
+document.getElementById('wkAddBtn').addEventListener('click', () => {
+  S.workoutList.push({...S.cfg});
+  renderWorkoutList();
+  toast(`「${S.cfg.name}」をリストに追加しました`);
+});
+document.getElementById('wkPlayBtn').addEventListener('click', startWorkout);
+document.getElementById('wkSaveBtn').addEventListener('click', () => {
+  if (!S.workoutList.length) { toast('リストに運動を追加してください'); return; }
+  const name = document.getElementById('wkSaveName').value.trim() || 'マイワークアウト';
+  const ytUrl = document.getElementById('wkYtUrl').value.trim();
+  const youtubeId = ytUrl ? extractVideoId(ytUrl) : '';
+  const arr = getWorkoutLists();
+  arr.push({ name, youtubeId: youtubeId || '', youtubeTitle: '', list: S.workoutList.map(c => ({...c})) });
+  setWorkoutLists(arr);
+  renderSavedWorkouts();
+  document.getElementById('wkSaveName').value = '';
+  document.getElementById('wkYtUrl').value = '';
+  toast(`「${name}」を保存しました${youtubeId ? '（YouTube連携あり）' : ''}`);
+});
+document.getElementById('trSkip').addEventListener('click', () => {
+  clearTransition(); doNextWorkoutExercise();
+});
+
+document.getElementById('overlay').addEventListener('click', () => {
+  if (document.getElementById('workoutSheet').classList.contains('open')) closeWorkoutPanel();
+  else closeSettings();
+});
+document.getElementById('applyBtn').addEventListener('click', applySettings);
+document.getElementById('savePrBtn').addEventListener('click', savePreset);
+
+document.getElementById('muteBtn').addEventListener('click', () => {
+  S.muted = !S.muted;
+  const b = document.getElementById('muteBtn');
+  b.textContent = S.muted ? '🔇' : '🔊';
+  b.classList.toggle('muted', S.muted);
+});
+
+document.getElementById('completeClose').addEventListener('click', () => {
+  document.getElementById('completeScreen').classList.remove('show');
+  doStop();  // resets workoutMode too
+});
+
+// Phase mode toggle
+document.getElementById('inPhaseMode').addEventListener('change', function() {
+  togglePhaseUI(this.checked);
+});
+
+// YouTube
+document.getElementById('ytFetchBtn').addEventListener('click', fetchYouTubeInfo);
+document.getElementById('ytUrlInput').addEventListener('keydown', e => { if (e.key === 'Enter') fetchYouTubeInfo(); });
+document.getElementById('ytApplyBtn').addEventListener('click', applyYouTubeData);
+document.getElementById('ytToggleBtn').addEventListener('click', () => {
+  document.getElementById('ytPanel').classList.toggle('open');
+});
+document.getElementById('ytBarClose').addEventListener('click', closeYtPanel);
+
+document.getElementById('ytManualToggle').addEventListener('click', () => {
+  const area = document.getElementById('ytManualArea');
+  const btn  = document.getElementById('ytManualToggle');
+  const show = area.classList.toggle('show');
+  btn.textContent = `動画の説明文を手動で貼り付ける ${show ? '▴' : '▾'}`;
+});
+
+document.getElementById('ytManualParseBtn').addEventListener('click', () => {
+  const text = document.getElementById('ytManualText').value;
+  const parsed = parseExerciseText(text);
+  if (!Object.keys(parsed).length) {
+    setYtStatus('設定を抽出できませんでした', 'err'); return;
+  }
+  if (showYtResult(parsed, '手動入力テキスト')) {
+    setYtStatus('解析完了！設定を確認してください', 'ok');
+  }
+});
+
+// Stepper buttons
+document.querySelectorAll('.step-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const input = document.getElementById(btn.dataset.target);
+    if (!input) return;
+    const delta = parseInt(btn.dataset.delta);
+    const min = +input.min; const max = +input.max;
+    input.value = Math.min(max, Math.max(min, (+input.value || 0) + delta));
+  });
+});
+
+/* ═══════════════════════════════════════════
+   INIT
+═══════════════════════════════════════════ */
+
+// Pre-register the 20-exercise aerobics workout on first launch
+(function initDefaultWorkout() {
+  const WORKOUT_NAME = '有酸素運動20種';
+  const lists = getWorkoutLists();
+  if (lists.some(wl => wl.name === WORKOUT_NAME)) return; // already exists
+
+  const exercises = [
+    'その場で足踏み', 'ニーアップ', 'バットキック', 'サイドからニーアップ',
+    'ショルダープレス', '肩甲骨寄せ&剥がし', 'アームサークル横', 'アームサークル上',
+    '風車', 'カーフレイズ', 'サイドホップ', '前方ランジ', 'アッパーカット',
+    'スタンディングアブズ', 'スタンディングサイドクランチ', '逆腹筋',
+    '股割りストレッチ', 'ハーフスクワット', 'スクワット&リーチ', 'ワイドスクワット'
+  ];
+
+  const list = exercises.map(name => ({
+    name,
+    secs: 20, reps: 20, sets: 1, rest: 10,
+    phaseMode: false,
+    p1Name: 'しゃがむ', p1Secs: 3,
+    p2Name: 'たつ',    p2Secs: 2
+  }));
+
+  lists.unshift({ name: WORKOUT_NAME, youtubeId: '', youtubeTitle: '', list });
+  setWorkoutLists(lists);
+})();
+
+loadCfg();
+render();
+</script>
+</body>
+</html>
