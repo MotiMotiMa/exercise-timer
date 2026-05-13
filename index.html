@@ -955,8 +955,6 @@ function sndPhase()    { beep(660, 0.08, 0.15); }
 function sndCount()    { beep(880, 0.1); }
 function sndSetEnd()   { beep(660, 0.18); setTimeout(() => beep(880, 0.25), 160); }
 function sndDone()     { [523,659,784,1047].forEach((f,i) => setTimeout(() => beep(f,0.3,0.3), i*110)); }
-function sndTick()     { beep(1100, 0.03, 0.1);  }   // 通常カウント
-function sndTickLast() { beep(1400, 0.05, 0.22); }   // 残り3秒以内
 
 /* ═══════════════════════════════════════════
    STORAGE
@@ -1179,17 +1177,7 @@ function tick() {
     if (!S.lastTs) S.lastTs = ts;
     const dt = (ts - S.lastTs) / 1000;
     S.lastTs = ts;
-    const prevLeft = S.timeLeft;
     S.timeLeft = Math.max(0, S.timeLeft - dt);
-
-    // Tick sound at each 1-second boundary (skip when timeLeft hits 0 — completion beep handles that)
-    if (S.timeLeft > 0) {
-      const prevSec = Math.ceil(prevLeft);
-      const currSec = Math.ceil(S.timeLeft);
-      if (currSec < prevSec) {
-        S.status === 'resting' ? sndTick() : (currSec <= 3 ? sndTickLast() : sndTick());
-      }
-    }
 
     if (S.timeLeft <= 0) {
       if (S.status === 'running') {
