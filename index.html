@@ -571,6 +571,40 @@
     }
     .wk-del:hover { color: var(--danger); background: rgba(255,85,85,0.1); }
 
+    .wk-edit-btn {
+      width: 24px; height: 24px; border: none; background: transparent;
+      color: var(--text-dim); cursor: pointer; font-size: 13px; border-radius: 4px;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+      transition: all 0.12s ease;
+    }
+    .wk-edit-btn:hover { color: var(--accent); background: var(--accent-dim); }
+
+    .wk-edit-form {
+      display: none; flex-direction: column; gap: 6px;
+      padding: 10px 12px; background: var(--bg-panel);
+      border: 1px solid var(--border); border-radius: 9px; margin-top: 2px;
+    }
+    .wk-edit-form.open { display: flex; }
+    .wk-edit-row { display: flex; align-items: center; gap: 6px; }
+    .wk-edit-lbl { font-size: 10px; color: var(--text-muted); width: 76px; flex-shrink: 0; }
+    .wk-edit-input {
+      flex: 1; background: var(--bg-elevated); border: 1px solid var(--border);
+      border-radius: 6px; color: var(--text); font-family: var(--font-mono);
+      font-size: 13px; padding: 5px 8px; outline: none;
+    }
+    .wk-edit-input:focus { border-color: var(--accent); }
+    .wk-edit-actions { display: flex; gap: 6px; justify-content: flex-end; margin-top: 2px; }
+    .wk-edit-save {
+      padding: 5px 14px; border-radius: 6px; border: 1px solid rgba(200,245,122,0.3);
+      background: var(--accent-dim); color: var(--accent); font-size: 12px; cursor: pointer;
+    }
+    .wk-edit-save:hover { background: rgba(200,245,122,0.18); }
+    .wk-edit-cancel {
+      padding: 5px 10px; border-radius: 6px; border: 1px solid var(--border);
+      background: transparent; color: var(--text-muted); font-size: 12px; cursor: pointer;
+    }
+    .wk-edit-cancel:hover { border-color: var(--border-mid); color: var(--text); }
+
     .wk-play-btn {
       width: 100%; padding: 13px; background: var(--accent); color: #0a0a0a;
       border: none; border-radius: 9px; font-family: var(--font-jp); font-size: 15px;
@@ -1105,7 +1139,7 @@ function render() {
     rp.classList.add('rest'); rg.classList.add('on');
     rl.textContent = 'REST';
     rn.textContent = Math.ceil(S.timeLeft); rn.className = 'rep-num rest-color';
-    rd.textContent = `セット${S.set-1}完了`;
+    rd.textContent = `セット${S.set}完了`;
     pb.className = 'phase-badge'; // hidden
 
   } else if (S.status === 'idle') {
@@ -1175,7 +1209,7 @@ function render() {
     ins.textContent = '一時停止中';
   } else if (S.status === 'resting') {
     ins.classList.add('rest-instr');
-    ins.textContent = `セット ${S.set-1} 完了！休憩してください`;
+    ins.textContent = `セット ${S.set} 完了！休憩してください`;
   } else if (S.status === 'complete') {
     ins.classList.add('active-instr');
     ins.textContent = '全セット完了！お疲れ様でした！';
@@ -1484,7 +1518,8 @@ function setWorkoutLists(a){ try { localStorage.setItem(LS_WK, JSON.stringify(a)
 
 function cfgMeta(c) {
   const secsText = c.phaseMode ? `${c.p1Secs}+${c.p2Secs}s` : `${c.secs}s`;
-  return `${c.reps}回 × ${c.sets}set / ${secsText}`;
+  const restText = c.rest ? ` / 休憩${c.rest}s` : '';
+  return `${c.reps}回 × ${c.sets}set / ${secsText}${restText}`;
 }
 
 function renderWorkoutList() {
@@ -1497,6 +1532,9 @@ function renderWorkoutList() {
   playBtn.disabled = false;
   el.innerHTML = '';
   S.workoutList.forEach((c, i) => {
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'display:flex;flex-direction:column;gap:2px;';
+
     const item = document.createElement('div');
     item.className = 'wk-item' + (S.workoutMode && i === S.workoutIdx ? ' active-item' : '');
     item.innerHTML =
@@ -1506,24 +1544,57 @@ function renderWorkoutList() {
         `<button class="wk-ord-btn" data-i="${i}" data-dir="-1" ${i === 0 ? 'disabled' : ''}>▲</button>` +
         `<button class="wk-ord-btn" data-i="${i}" data-dir="1" ${i === S.workoutList.length-1 ? 'disabled' : ''}>▼</button>` +
       `</div>` +
+      `<button class="wk-edit-btn" title="編集">✎</button>` +
       `<button class="wk-del" data-i="${i}">✕</button>`;
-    el.appendChild(item);
-  });
 
-  el.querySelectorAll('.wk-ord-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const i = +btn.dataset.i, dir = +btn.dataset.dir;
-      const j = i + dir;
-      if (j < 0 || j >= S.workoutList.length) return;
+    const form = document.createElement('div');
+    form.className = 'wk-edit-form';
+    form.innerHTML =
+      `<div class="wk-edit-row"><span class="wk-edit-lbl">運動名</span><input class="wk-edit-input" data-f="name" type="text" value="${c.name}"></div>` +
+      `<div class="wk-edit-row"><span class="wk-edit-lbl">回数</span><input class="wk-edit-input" data-f="reps" type="number" min="1" value="${c.reps}"></div>` +
+      `<div class="wk-edit-row"><span class="wk-edit-lbl">セット数</span><input class="wk-edit-input" data-f="sets" type="number" min="1" value="${c.sets}"></div>` +
+      `<div class="wk-edit-row"><span class="wk-edit-lbl">秒数/回</span><input class="wk-edit-input" data-f="secs" type="number" min="1" value="${c.secs || c.p1Secs || 3}"></div>` +
+      `<div class="wk-edit-row"><span class="wk-edit-lbl">休憩(秒)</span><input class="wk-edit-input" data-f="rest" type="number" min="0" value="${c.rest || 0}"></div>` +
+      `<div class="wk-edit-actions"><button class="wk-edit-cancel">キャンセル</button><button class="wk-edit-save">保存</button></div>`;
+
+    item.querySelector('.wk-edit-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      form.classList.toggle('open');
+    });
+    item.querySelector('.wk-ord-btn[data-dir="-1"]').addEventListener('click', () => {
+      const j = i - 1;
+      if (j < 0) return;
       [S.workoutList[i], S.workoutList[j]] = [S.workoutList[j], S.workoutList[i]];
       renderWorkoutList();
     });
-  });
-  el.querySelectorAll('.wk-del').forEach(btn => {
-    btn.addEventListener('click', () => {
-      S.workoutList.splice(+btn.dataset.i, 1);
+    item.querySelector('.wk-ord-btn[data-dir="1"]').addEventListener('click', () => {
+      const j = i + 1;
+      if (j >= S.workoutList.length) return;
+      [S.workoutList[i], S.workoutList[j]] = [S.workoutList[j], S.workoutList[i]];
       renderWorkoutList();
     });
+    item.querySelector('.wk-del').addEventListener('click', () => {
+      S.workoutList.splice(i, 1);
+      renderWorkoutList();
+    });
+    form.querySelector('.wk-edit-cancel').addEventListener('click', () => form.classList.remove('open'));
+    form.querySelector('.wk-edit-save').addEventListener('click', () => {
+      const updated = {...S.workoutList[i]};
+      form.querySelectorAll('.wk-edit-input').forEach(inp => {
+        const f = inp.dataset.f;
+        if (f === 'name') updated.name = inp.value.trim() || updated.name;
+        else if (f === 'rest') updated.rest = Math.max(0, +inp.value || 0);
+        else updated[f] = Math.max(1, +inp.value || 1);
+      });
+      if (!updated.phaseMode) updated.secs = updated.secs;
+      S.workoutList[i] = updated;
+      renderWorkoutList();
+      toast(`「${updated.name}」を更新しました`);
+    });
+
+    wrap.appendChild(item);
+    wrap.appendChild(form);
+    el.appendChild(wrap);
   });
 }
 
@@ -1961,7 +2032,7 @@ document.querySelectorAll('.step-btn').forEach(btn => {
     { name: 'その場で足踏み',             secs: 20, reps: 1, sets: 1, rest: 10 },
     { name: 'ニーアップ',                 secs: 20, reps: 1, sets: 1, rest: 10 },
     { name: 'バットキック',               secs: 20, reps: 1, sets: 1, rest: 10 },
-    { name: 'サイドからニーアップ',       secs:  1, reps: 1, sets: 1, rest: 10 },
+    { name: 'サイドからニーアップ',       secs:  20, reps: 1, sets: 1, rest: 10 },
     { name: 'ショルダープレス',           secs: 20, reps: 1, sets: 1, rest: 10 },
     { name: '肩甲骨寄せ&剥がし',          secs: 20, reps: 1, sets: 1, rest: 10 },
     { name: 'アームサークル横',           secs: 20, reps: 1, sets: 1, rest: 10 },
@@ -2015,7 +2086,7 @@ document.querySelectorAll('.step-btn').forEach(btn => {
 
   const list = exercises.map(name => ({
     name,
-    secs: 20, reps: 20, sets: 1, rest: 10,
+    secs: 20, reps: 10, sets: 1, rest: 10,
     phaseMode: false,
     p1Name: 'しゃがむ', p1Secs: 3,
     p2Name: 'たつ',    p2Secs: 2
