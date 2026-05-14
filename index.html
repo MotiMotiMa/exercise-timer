@@ -1357,6 +1357,7 @@ function doStop() {
    SETTINGS
 ═══════════════════════════════════════════ */
 function openSettings() {
+  if (S.status === 'running' || S.status === 'resting') return;
   const c = S.cfg;
   document.getElementById('inName').value = c.name;
   document.getElementById('inSecs').value = c.secs;
@@ -1645,6 +1646,7 @@ function renderPresetSelect() {
 }
 
 function openWorkoutPanel() {
+  if (S.status === 'running' || S.status === 'resting') return;
   renderWorkoutList();
   renderSavedWorkouts();
   renderPresetSelect();
