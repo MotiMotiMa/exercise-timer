@@ -1686,8 +1686,8 @@ function showWorkoutTransition() {
   document.getElementById('trNextName').textContent = next.name;
   document.getElementById('trIdx').textContent = `${nextIdx + 1} / ${S.workoutList.length} 種目`;
 
-  let left = 3;
-  document.getElementById('trCount').textContent = left;
+  let left = S.cfg.rest > 0 ? S.cfg.rest : 3;
+  document.getElementById('trCount').textContent = Math.ceil(left);
   document.getElementById('transitionScreen').classList.add('show');
 
   function tick() {
@@ -2074,7 +2074,15 @@ document.querySelectorAll('.step-btn').forEach(btn => {
 (function initDefaultWorkout() {
   const WORKOUT_NAME = '有酸素運動20種';
   const lists = getWorkoutLists();
-  if (lists.some(wl => wl.name === WORKOUT_NAME)) return; // already exists
+  const existing = lists.find(wl => wl.name === WORKOUT_NAME);
+  if (existing) {
+    // Fix legacy data where reps was incorrectly set to 10
+    if (existing.list && existing.list.some(e => e.reps !== 1)) {
+      existing.list.forEach(e => { e.reps = 1; });
+      setWorkoutLists(lists);
+    }
+    return;
+  }
 
   const exercises = [
     'その場で足踏み', 'ニーアップ', 'バットキック', 'サイドからニーアップ',
@@ -2086,7 +2094,7 @@ document.querySelectorAll('.step-btn').forEach(btn => {
 
   const list = exercises.map(name => ({
     name,
-    secs: 20, reps: 10, sets: 1, rest: 10,
+    secs: 20, reps: 1, sets: 1, rest: 10,
     phaseMode: false,
     p1Name: 'しゃがむ', p1Secs: 3,
     p2Name: 'たつ',    p2Secs: 2
