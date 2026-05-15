@@ -1015,6 +1015,8 @@ const S = {
   lastTs: null,
   muted: false,
   ytParsed: null,
+  announcedFinalWarning: false,  // for "あと少し" announcement
+  announcedHalfway: false,       // for midpoint encouragement
   // Workout list mode
   workoutMode: false,
   workoutList: [],  // array of cfg objects
@@ -1250,6 +1252,8 @@ function startRep() {
   S.phaseTotal = phaseSecs();
   S.timeLeft = S.phaseTotal;
   S.lastTs = null;
+  S.announcedFinalWarning = false;
+  S.announcedHalfway = false;
   tick(); render();
 }
 
@@ -1259,6 +1263,7 @@ function startRest() {
   S.phaseTotal = S.cfg.rest;
   S.timeLeft = S.cfg.rest;
   S.lastTs = null;
+  S.announcedFinalWarning = false;
   sndSetEnd(); tick(); render();
 }
 
@@ -1295,6 +1300,20 @@ function tick() {
     const dt = (ts - S.lastTs) / 1000;
     S.lastTs = ts;
     S.timeLeft = Math.max(0, S.timeLeft - dt);
+
+    if (S.status === 'running') {
+      const progress = (S.phaseTotal - S.timeLeft) / S.phaseTotal;
+      const midMessages = ['がんばって', 'いけるいける', 'いい感じ'];
+      if (progress >= 0.5 && !S.announcedHalfway) {
+        S.announcedHalfway = true;
+        announce(midMessages[Math.floor(Math.random() * midMessages.length)]);
+      }
+      const finalMessages = ['あと少し', 'もう一息'];
+      if (S.timeLeft <= 3 && S.timeLeft > 0 && !S.announcedFinalWarning) {
+        S.announcedFinalWarning = true;
+        announce(finalMessages[Math.floor(Math.random() * finalMessages.length)]);
+      }
+    }
 
     if (S.timeLeft <= 0) {
       if (S.status === 'running') {
@@ -1345,7 +1364,8 @@ function doPlay() {
   }
   if (S.status === 'running') return;
   sndStart();
-  announce(S.cfg.name);
+  announce('スタート');
+  setTimeout(() => announce(S.cfg.name), 600);
   S.set = 1; S.rep = 0; startRep();
   ytPlayIfReady();
 }
@@ -1360,6 +1380,8 @@ function doPause() {
 
 function doStop() {
   S.status = 'idle'; S.set = 1; S.rep = 0; S.phase = 1; S.timeLeft = 0; S.phaseTotal = 0;
+  S.announcedFinalWarning = false;
+  S.announcedHalfway = false;
   if (S.rafId) { cancelAnimationFrame(S.rafId); S.rafId = null; }
   clearTransition();
   S.workoutMode = false; S.workoutIdx = 0;
@@ -1703,7 +1725,8 @@ function startWorkout() {
   S.set = 1; S.rep = 0; S.phase = 1;
   getCtx();
   sndStart();
-  announce(S.cfg.name);
+  announce('スタート');
+  setTimeout(() => announce(S.cfg.name), 600);
   startRep();
   ytPlayIfReady();
 }
