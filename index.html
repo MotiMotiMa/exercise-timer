@@ -1064,6 +1064,15 @@ function sndCount()    { beep(660, 0.08); setTimeout(() => beep(880, 0.12), 80);
 function sndSetEnd()   { beep(660, 0.18); setTimeout(() => beep(880, 0.25), 160); }
 function sndDone()     { [523,659,784,1047].forEach((f,i) => setTimeout(() => beep(f,0.3,0.3), i*110)); }
 
+function announce(text) {
+  if (S.muted) return;
+  if (!('speechSynthesis' in window)) return;
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = 'ja-JP'; u.rate = 1.1;
+  speechSynthesis.speak(u);
+}
+
 /* ═══════════════════════════════════════════
    STORAGE
 ═══════════════════════════════════════════ */
@@ -1336,6 +1345,7 @@ function doPlay() {
   }
   if (S.status === 'running') return;
   sndStart();
+  announce(S.cfg.name);
   S.set = 1; S.rep = 0; startRep();
   ytPlayIfReady();
 }
@@ -1693,6 +1703,7 @@ function startWorkout() {
   S.set = 1; S.rep = 0; S.phase = 1;
   getCtx();
   sndStart();
+  announce(S.cfg.name);
   startRep();
   ytPlayIfReady();
 }
@@ -1706,6 +1717,7 @@ function showWorkoutTransition() {
   document.getElementById('trDoneName').textContent = done.name;
   document.getElementById('trNextName').textContent = next.name;
   document.getElementById('trIdx').textContent = `${nextIdx + 1} / ${S.workoutList.length} 種目`;
+  announce('次は' + next.name);
 
   let left = S.cfg.rest > 0 ? S.cfg.rest : 3;
   document.getElementById('trCount').textContent = Math.ceil(left);
