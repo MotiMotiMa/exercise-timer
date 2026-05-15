@@ -1066,8 +1066,27 @@ function sndCount()    { beep(660, 0.08); setTimeout(() => beep(880, 0.12), 80);
 function sndSetEnd()   { beep(660, 0.18); setTimeout(() => beep(880, 0.25), 160); }
 function sndDone()     { [523,659,784,1047].forEach((f,i) => setTimeout(() => beep(f,0.3,0.3), i*110)); }
 
+const VOICE_MP3 = {
+  'スタートなのだ': 'audio/スタートなのだ.mp3',
+  'がんばるのだ':   'audio/がんばるのだ.mp3',
+  'いけるのだ':     'audio/いけるのだ.mp3',
+  'いい感じなのだ': 'audio/良い感じなのだ.mp3',
+  'あと少しなのだ': 'audio/あと少しなのだ.mp3',
+  'もう一息なのだ': 'audio/もう一息なのだ.mp3',
+};
+
 function announce(text) {
   if (S.muted) return;
+  const src = VOICE_MP3[text];
+  if (src) {
+    const a = new Audio(src);
+    a.play().catch(() => _ttsFallback(text));
+    return;
+  }
+  _ttsFallback(text);
+}
+
+function _ttsFallback(text) {
   if (!('speechSynthesis' in window)) return;
   speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(text);
@@ -1303,12 +1322,12 @@ function tick() {
 
     if (S.status === 'running') {
       const progress = (S.phaseTotal - S.timeLeft) / S.phaseTotal;
-      const midMessages = ['がんばって', 'いけるいける', 'いい感じ'];
+      const midMessages = ['がんばるのだ', 'いけるのだ', 'いい感じなのだ'];
       if (progress >= 0.5 && !S.announcedHalfway) {
         S.announcedHalfway = true;
         announce(midMessages[Math.floor(Math.random() * midMessages.length)]);
       }
-      const finalMessages = ['あと少し', 'もう一息'];
+      const finalMessages = ['あと少しなのだ', 'もう一息なのだ'];
       if (S.timeLeft <= 3 && S.timeLeft > 0 && !S.announcedFinalWarning) {
         S.announcedFinalWarning = true;
         announce(finalMessages[Math.floor(Math.random() * finalMessages.length)]);
@@ -1364,7 +1383,7 @@ function doPlay() {
   }
   if (S.status === 'running') return;
   sndStart();
-  announce('スタート');
+  announce('スタートなのだ');
   setTimeout(() => announce(S.cfg.name), 600);
   S.set = 1; S.rep = 0; startRep();
   ytPlayIfReady();
@@ -1725,7 +1744,7 @@ function startWorkout() {
   S.set = 1; S.rep = 0; S.phase = 1;
   getCtx();
   sndStart();
-  announce('スタート');
+  announce('スタートなのだ');
   setTimeout(() => announce(S.cfg.name), 600);
   startRep();
   ytPlayIfReady();
