@@ -254,7 +254,7 @@
       display: flex; align-items: center; justify-content: center;
     }
 
-    .sheet-body { padding: 18px 18px 28px; display: flex; flex-direction: column; gap: 14px; }
+    .sheet-body { padding: 0 18px 28px; }
 
     /* section dividers */
     .section-head {
@@ -513,16 +513,21 @@
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: var(--border-mid); border-radius: 2px; }
 
-    /* ─── WORKOUT PANEL ─── */
-    .workout-sheet {
-      position: fixed; bottom: 0; left: 50%; z-index: 51;
-      transform: translateX(-50%) translateY(100%);
-      width: 100%; max-width: 480px;
-      background: var(--bg-panel); border: 1px solid var(--border); border-bottom: none;
-      border-radius: 20px 20px 0 0; max-height: 92vh; overflow-y: auto;
-      transition: transform 0.38s cubic-bezier(0.32,0.72,0,1);
+    /* ─── TAB BAR ─── */
+    .tab-bar {
+      display: flex; border-bottom: 1px solid var(--border);
+      padding: 0 18px; gap: 0;
     }
-    .workout-sheet.open { transform: translateX(-50%) translateY(0); }
+    .tab-btn {
+      flex: 1; padding: 10px 0; font-family: var(--font-jp); font-size: 12px;
+      font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+      background: none; border: none; color: var(--text-muted); cursor: pointer;
+      border-bottom: 2px solid transparent; margin-bottom: -1px;
+      transition: color 0.15s ease, border-color 0.15s ease;
+    }
+    .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .tab-pane { display: none; }
+    .tab-pane.active { display: flex; flex-direction: column; gap: 14px; padding-top: 14px; }
 
     .wk-add-btn {
       width: 100%; padding: 11px 14px;
@@ -720,9 +725,8 @@
       </div>
       <div class="header-btns">
         <button class="icon-btn" id="ytToggleBtn" title="動画パネル" style="display:none">▶</button>
-        <button class="icon-btn" id="workoutBtn" title="ワークアウトリスト">☰</button>
+        <button class="icon-btn" id="workoutBtn" title="設定 / ワークアウト">☰</button>
         <button class="icon-btn" id="muteBtn" title="ミュート切替">🔊</button>
-        <button class="icon-btn" id="settingsBtn" title="設定">⚙</button>
       </div>
     </header>
 
@@ -789,10 +793,15 @@
 <div class="settings-sheet" id="settingsSheet">
   <div class="sheet-handle"></div>
   <div class="sheet-head">
-    <span class="sheet-title">設定</span>
+    <span class="sheet-title" id="sheetTitle">設定</span>
     <button class="sheet-close" id="sheetClose">✕</button>
   </div>
+  <div class="tab-bar">
+    <button class="tab-btn active" id="tabBtnSettings" onclick="switchTab('settings')">⚙ 設定</button>
+    <button class="tab-btn" id="tabBtnWorkout" onclick="switchTab('workout')">☰ ワークアウト</button>
+  </div>
   <div class="sheet-body">
+  <div class="tab-pane active" id="tabPane-settings">
 
     <!-- 運動設定 -->
     <div class="section-head">運動設定</div>
@@ -929,24 +938,10 @@
       </div>
     </div>
 
-  </div>
-</div>
+  </div><!-- /tab-pane settings -->
 
-<div class="complete-screen" id="completeScreen">
-  <div class="complete-emoji">🎉</div>
-  <div class="complete-title">完了！</div>
-  <div class="complete-stats" id="completeStats"></div>
-  <button class="complete-close" id="completeClose">閉じる</button>
-</div>
-
-<!-- Workout panel -->
-<div class="workout-sheet" id="workoutSheet">
-  <div class="sheet-handle"></div>
-  <div class="sheet-head">
-    <span class="sheet-title">ワークアウトリスト</span>
-    <button class="sheet-close" id="workoutSheetClose">✕</button>
-  </div>
-  <div class="sheet-body">
+  <!-- ワークアウトタブ -->
+  <div class="tab-pane" id="tabPane-workout">
 
     <button class="wk-add-btn" id="wkAddBtn">＋ 現在の設定をリストに追加</button>
 
@@ -978,7 +973,16 @@
       <div class="empty-msg">保存済みワークアウトはありません</div>
     </div>
 
-  </div>
+  </div><!-- /tab-pane workout -->
+
+  </div><!-- /sheet-body -->
+</div>
+
+<div class="complete-screen" id="completeScreen">
+  <div class="complete-emoji">🎉</div>
+  <div class="complete-title">完了！</div>
+  <div class="complete-stats" id="completeStats"></div>
+  <button class="complete-close" id="completeClose">閉じる</button>
 </div>
 
 <!-- Transition screen (between exercises in workout) -->
@@ -1356,6 +1360,21 @@ function doStop() {
 /* ═══════════════════════════════════════════
    SETTINGS
 ═══════════════════════════════════════════ */
+function switchTab(name) {
+  ['settings', 'workout'].forEach(t => {
+    document.getElementById('tabPane-' + t).classList.toggle('active', t === name);
+    document.getElementById('tabBtn' + t.charAt(0).toUpperCase() + t.slice(1)).classList.toggle('active', t === name);
+  });
+  if (name === 'workout') {
+    renderWorkoutList();
+    renderSavedWorkouts();
+    renderPresetSelect();
+    if (ytCurrentId && !document.getElementById('wkYtUrl').value.trim()) {
+      document.getElementById('wkYtUrl').value = `https://www.youtube.com/watch?v=${ytCurrentId}`;
+    }
+  }
+}
+
 function openSettings() {
   if (S.status === 'running' || S.status === 'resting') return;
   const c = S.cfg;
@@ -1371,6 +1390,7 @@ function openSettings() {
   document.getElementById('inP2Secs').value = c.p2Secs;
   togglePhaseUI(c.phaseMode);
   renderPresets();
+  switchTab('settings');
   document.getElementById('settingsSheet').classList.add('open');
   document.getElementById('overlay').classList.add('open');
 }
@@ -1654,14 +1674,13 @@ function openWorkoutPanel() {
   if (ytCurrentId && !document.getElementById('wkYtUrl').value.trim()) {
     document.getElementById('wkYtUrl').value = `https://www.youtube.com/watch?v=${ytCurrentId}`;
   }
-  document.getElementById('workoutSheet').classList.add('open');
+  switchTab('workout');
+  document.getElementById('settingsSheet').classList.add('open');
   document.getElementById('overlay').classList.add('open');
-  document.getElementById('overlay')._target = 'workout';
 }
 
 function closeWorkoutPanel() {
-  document.getElementById('workoutSheet').classList.remove('open');
-  document.getElementById('overlay').classList.remove('open');
+  closeSettings();
 }
 
 function startWorkout() {
@@ -1915,12 +1934,12 @@ document.getElementById('pauseBtn').addEventListener('click', () => {
 });
 document.getElementById('stopBtn').addEventListener('click', doStop);
 
-document.getElementById('settingsBtn').addEventListener('click', openSettings);
+// settingsBtn removed
 document.getElementById('sheetClose').addEventListener('click', closeSettings);
 
 // Workout panel
-document.getElementById('workoutBtn').addEventListener('click', openWorkoutPanel);
-document.getElementById('workoutSheetClose').addEventListener('click', closeWorkoutPanel);
+document.getElementById('workoutBtn').addEventListener('click', openSettings);
+// workoutSheetClose removed (now uses sheetClose)
 document.getElementById('wkAddBtn').addEventListener('click', () => {
   S.workoutList.push({...S.cfg});
   renderWorkoutList();
@@ -1957,8 +1976,7 @@ document.getElementById('trSkip').addEventListener('click', () => {
 });
 
 document.getElementById('overlay').addEventListener('click', () => {
-  if (document.getElementById('workoutSheet').classList.contains('open')) closeWorkoutPanel();
-  else closeSettings();
+  closeSettings();
 });
 document.getElementById('applyBtn').addEventListener('click', applySettings);
 document.getElementById('savePrBtn').addEventListener('click', savePreset);
