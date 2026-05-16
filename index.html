@@ -1087,6 +1087,18 @@ for (const [key, src] of Object.entries(VOICE_MP3_SRC)) {
   VOICE_AUDIO[key] = new Audio(src);
 }
 
+// 最初のユーザー操作時に全Audioを無音で再生→即停止して解放する
+let voiceUnlocked = false;
+function unlockVoiceAudio() {
+  if (voiceUnlocked) return;
+  voiceUnlocked = true;
+  for (const audio of Object.values(VOICE_AUDIO)) {
+    audio.volume = 0;
+    const p = audio.play();
+    if (p) p.then(() => { audio.pause(); audio.currentTime = 0; audio.volume = 1; }).catch(() => {});
+  }
+}
+
 function announce(text) {
   if (S.muted) return;
   const audio = VOICE_AUDIO[text];
@@ -1387,6 +1399,7 @@ function tick() {
 
 function doPlay() {
   getCtx();
+  unlockVoiceAudio();
   if (S.status === 'resting') { nextSet(); return; }
   if (S.status === 'paused') {
     S.status = 'running'; S.lastTs = null; tick(); render();
@@ -1749,6 +1762,7 @@ function closeWorkoutPanel() {
 
 function startWorkout() {
   if (!S.workoutList.length) return;
+  unlockVoiceAudio();
   S.workoutMode = true;
   S.workoutIdx = 0;
   S.cfg = {...S.workoutList[0]};
